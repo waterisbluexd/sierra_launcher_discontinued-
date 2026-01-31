@@ -33,7 +33,6 @@ pub struct ServicesPanel {
     pub volume_value: f32,
     pub brightness_value: f32,
     pub slider_height: f32,
-    previous_volume_value: f32,
     is_muted: bool,
     previous_brightness_value: f32,
     is_min_brightness: bool,
@@ -97,7 +96,6 @@ impl ServicesPanel {
             volume_value,
             brightness_value,
             slider_height: 107.0,
-            previous_volume_value: volume_value,
             is_muted,
             previous_brightness_value: brightness_value,
             is_min_brightness: false,
@@ -859,15 +857,6 @@ impl ServicesPanel {
         std::thread::spawn(move || {
             system_services::set_mute_cmd(is_muted);
         });
-
-        if self.is_muted {
-            if self.volume_value > 0.0 {
-                self.previous_volume_value = self.volume_value;
-                self.volume_value = 0.0;
-            }
-        } else {
-            self.volume_value = self.previous_volume_value;
-        }
     }
 
     pub fn toggle_min_brightness(&mut self) {

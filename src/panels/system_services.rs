@@ -10,14 +10,17 @@ pub fn get_volume() -> Option<f32> {
 }
 
 pub fn set_volume_cmd(value: u8) {
-    // ✅ FIX 1: Use absolute percentage (NO + or - prefix)
+    // Resume sink if suspended - CRITICAL for post-sleep reliability
+    if run_pactl(&["suspend-sink", "@DEFAULT_SINK@", "0"]).is_err() {
+        eprintln!("[Audio] Warning: Failed to resume sink");
+        // Continue anyway - sink might not have been suspended
+    }
+    
     let volume_str = format!("{}%", value);
     
-    // ✅ FIX 2: Resume sink if suspended
-    let _ = run_pactl(&["suspend-sink", "@DEFAULT_SINK@", "0"]);
-    
-    // ✅ FIX 3: Set volume with absolute value
-    let _ = run_pactl(&["set-sink-volume", "@DEFAULT_SINK@", &volume_str]);
+    if let Err(e) = run_pactl(&["set-sink-volume", "@DEFAULT_SINK@", &volume_str]) {
+        eprintln!("[Audio] Failed to set volume: {}", e);
+    }
 }
 
 
