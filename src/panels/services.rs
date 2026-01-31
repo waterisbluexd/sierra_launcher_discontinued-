@@ -43,12 +43,15 @@ pub struct ServicesPanel {
     // Cache status with Arc<Mutex> for thread-safe access
     status_cache: Arc<Mutex<ServiceStatus>>,
     refresh_requested: Arc<Mutex<bool>>,
+    last_volume_update: Instant,
+    last_brightness_update: Instant,
 }
 
 impl ServicesPanel {
     pub fn new() -> Self {
         let volume_value = system_services::get_volume().unwrap_or(50.0);
         let brightness_value = system_services::get_brightness().unwrap_or(50.0);
+        let is_muted = system_services::get_mute_state();
         
         let status_cache = Arc::new(Mutex::new(ServiceStatus::default()));
         let refresh_requested = Arc::new(Mutex::new(true));
@@ -95,13 +98,15 @@ impl ServicesPanel {
             brightness_value,
             slider_height: 107.0,
             previous_volume_value: volume_value,
-            is_muted: false,
+            is_muted,
             previous_brightness_value: brightness_value,
             is_min_brightness: false,
             is_airplane_mode_on: false,
             eye_care_enabled: false,
             status_cache,
             refresh_requested,
+            last_volume_update: Instant::now(),
+            last_brightness_update: Instant::now(),
         }
     }
 
@@ -821,11 +826,14 @@ impl ServicesPanel {
             self.is_muted = false;
         }
         
-        // Spawn async to avoid blocking
-        let vol = self.volume_value as u8;
-        std::thread::spawn(move || {
-            system_services::set_volume_cmd(vol);
-        });
+        if self.last_volume_update.elapsed() >= Duration::from_millis(100) {
+            self.last_volume_update = Instant::now();
+            // Spawn async to avoid blocking
+            let vol = self.volume_value as u8;
+            std::thread::spawn(move || {
+                system_services::set_volume_cmd(vol);
+            });
+        }
     }
 
     pub fn set_brightness(&mut self, value: f32) {
@@ -834,20 +842,31 @@ impl ServicesPanel {
             self.is_min_brightness = false;
         }
         
-        // Spawn async to avoid blocking
-        let bright = self.brightness_value as u8;
-        std::thread::spawn(move || {
-            system_services::set_brightness_cmd(bright);
-        });
+        if self.last_brightness_update.elapsed() >= Duration::from_millis(100) {
+            self.last_brightness_update = Instant::now();
+            // Spawn async to avoid blocking
+            let bright = self.brightness_value as u8;
+            std::thread::spawn(move || {
+                system_services::set_brightness_cmd(bright);
+            });
+        }
     }
 
     pub fn toggle_mute(&mut self) {
         self.is_muted = !self.is_muted;
+        let is_muted = self.is_muted;
+        
+        std::thread::spawn(move || {
+            system_services::set_mute_cmd(is_muted);
+        });
+
         if self.is_muted {
-            self.previous_volume_value = self.volume_value;
-            self.set_volume(0.0);
+            if self.volume_value > 0.0 {
+                self.previous_volume_value = self.volume_value;
+                self.volume_value = 0.0;
+            }
         } else {
-            self.set_volume(self.previous_volume_value);
+            self.volume_value = self.previous_volume_value;
         }
     }
 

@@ -1,149 +1,134 @@
 use std::process::Command;
 use regex::Regex;
 
-// Helper function to run commands with a timeout
-fn run_command_with_timeout(command: &str, args: &[&str]) -> Option<String> {
-    // Add a timeout of 1 second for external commands to prevent hanging
-    let mut full_args = vec!["1"];
-    full_args.push(command);
-    full_args.extend_from_slice(args);
-
-    if let Ok(output) = Command::new("timeout")
-        .args(&full_args)
-        .output() {
-        if output.status.success() {
-            String::from_utf8(output.stdout).ok()
-        } else {
-            // Log stderr if command failed
-            eprintln!(
-                "Command `{}` with args `{:?}` failed: {}",
-                command,
-                args,
-                String::from_utf8_lossy(&output.stderr)
-            );
-            None
-        }
-    } else {
-        eprintln!("Failed to execute command: {}", command);
-        None
-    }
-}
-
 pub fn get_volume() -> Option<f32> {
-    let output_str = run_command_with_timeout("pactl", &["get-sink-volume", "@DEFAULT_SINK@"])?;
-    let re = Regex::new(r"(\d+)%").unwrap();
-    let caps = re.captures(&output_str)?;
-    let value_str = caps.get(1)?.as_str();
-    value_str.parse::<f32>().ok()
+    let output = run_pactl(&["get-sink-volume", "@DEFAULT_SINK@"]).ok()?;
+    
+    let re = Regex::new(r"(\d+)%").ok()?;
+    let caps = re.captures(&output)?;
+    caps.get(1)?.as_str().parse::<f32>().ok()
 }
 
 pub fn set_volume_cmd(value: u8) {
-    let _ = Command::new("pactl")
-        .arg("set-sink-volume")
-        .arg("@DEFAULT_SINK@")
-        .arg(format!("{}%", value))
-        .output();
+    // ✅ FIX 1: Use absolute percentage (NO + or - prefix)
+    let volume_str = format!("{}%", value);
+    
+    // ✅ FIX 2: Resume sink if suspended
+    let _ = run_pactl(&["suspend-sink", "@DEFAULT_SINK@", "0"]);
+    
+    // ✅ FIX 3: Set volume with absolute value
+    let _ = run_pactl(&["set-sink-volume", "@DEFAULT_SINK@", &volume_str]);
 }
 
-pub fn get_brightness() -> Option<f32> {
-    let current_str = run_command_with_timeout("brightnessctl", &["g"])?;
-    let current = current_str.trim().parse::<f32>().ok()?;
 
-    let max_str = run_command_with_timeout("brightnessctl", &["m"])?;
-    let max = max_str.trim().parse::<f32>().ok()?;
+pub fn get_mute_state() -> bool {
+    run_pactl(&["get-sink-mute", "@DEFAULT_SINK@"])
+        .ok()
+        .map(|s| s.to_lowercase().contains("yes"))
+        .unwrap_or(false)
+}
 
-    if max > 0.0 {
-        Some((current / max) * 100.0)
-    } else {
-        None
+pub fn set_mute_cmd(muted: bool) {
+    let state = if muted { "1" } else { "0" };
+    let _ = run_pactl(&["set-sink-mute", "@DEFAULT_SINK@", state]);
+}
+
+fn run_pactl(args: &[&str]) -> Result<String, String> {
+    let output = Command::new("pactl")
+        .args(args)
+        .output()
+        .map_err(|e| format!("pactl failed: {}", e))?;
+    
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
     }
+    
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+
+pub fn get_brightness() -> Option<f32> {
+    let current_output = Command::new("brightnessctl").arg("g").output().ok()?;
+    let current = String::from_utf8_lossy(&current_output.stdout).trim().parse::<f32>().ok()?;
+
+    let max_output = Command::new("brightnessctl").arg("m").output().ok()?;
+    let max = String::from_utf8_lossy(&max_output.stdout).trim().parse::<f32>().ok()?;
+
+    if max > 0.0 { Some((current / max) * 100.0) } else { None }
 }
 
 pub fn set_brightness_cmd(value: u8) {
-    let _ = Command::new("brightnessctl")
-        .arg("s")
-        .arg(format!("{}%", value))
-        .output();
+    let _ = Command::new("brightnessctl").arg("s").arg(format!("{}%", value)).output();
 }
 
+
 pub fn fetch_wifi_status() -> (bool, String) {
-    // Try nmcli first (NetworkManager)
-    if let Some(stdout) = run_command_with_timeout("nmcli", &["-t", "-f", "ACTIVE,SSID", "dev", "wifi"]) {
-        for line in stdout.lines() {
-            if line.starts_with("yes:") {
-                let ssid = line.strip_prefix("yes:").unwrap_or("Connected");
-                return (true, ssid.to_string());
+    if let Ok(output) = Command::new("nmcli").args(&["-t", "-f", "ACTIVE,SSID", "dev", "wifi"]).output() {
+        if let Ok(stdout) = String::from_utf8(output.stdout) {
+            for line in stdout.lines() {
+                if line.starts_with("yes:") {
+                    return (true, line.strip_prefix("yes:").unwrap_or("Connected").to_string());
+                }
             }
         }
     }
 
-    // Fallback to iwgetid
-    if let Some(ssid) = run_command_with_timeout("iwgetid", &["-r"]) {
-        let ssid = ssid.trim();
-        if !ssid.is_empty() {
-            return (true, ssid.to_string());
+    if let Ok(output) = Command::new("iwgetid").arg("-r").output() {
+        if let Ok(ssid) = String::from_utf8(output.stdout) {
+            let ssid = ssid.trim();
+            if !ssid.is_empty() { return (true, ssid.to_string()); }
         }
     }
 
-    // Check if WiFi is disabled via nmcli
-    if let Some(stdout) = run_command_with_timeout("nmcli", &["radio", "wifi"]) {
-        if stdout.trim() == "disabled" {
-            return (false, "WiFi Off".to_string());
+    if let Ok(output) = Command::new("nmcli").args(&["radio", "wifi"]).output() {
+        if let Ok(stdout) = String::from_utf8(output.stdout) {
+            if stdout.trim() == "disabled" { return (false, "WiFi Off".to_string()); }
         }
     }
 
-    // WiFi is on but not connected or other issue
     (true, "No Network".to_string())
 }
 
 pub fn toggle_wifi_cmd(enable: bool) {
-    if enable {
-        let _ = Command::new("nmcli").args(&["radio", "wifi", "on"]).output();
-    } else {
-        let _ = Command::new("nmcli").args(&["radio", "wifi", "off"]).output();
-    }
+    let state = if enable { "on" } else { "off" };
+    let _ = Command::new("nmcli").args(&["radio", "wifi", state]).output();
 }
 
+
 pub fn fetch_bluetooth_status() -> (bool, String) {
-    // Check if bluetooth is powered on using bluetoothctl
-    if let Some(stdout) = run_command_with_timeout("bluetoothctl", &["show"]) {
-        let powered = stdout.lines()
-            .find(|line| line.contains("Powered:"))
-            .and_then(|line| line.split(':').nth(1))
-            .map(|s| s.trim() == "yes")
-            .unwrap_or(false);
+    if let Ok(output) = Command::new("bluetoothctl").arg("show").output() {
+        if let Ok(stdout) = String::from_utf8(output.stdout) {
+            let powered = stdout.lines()
+                .find(|line| line.contains("Powered:"))
+                .and_then(|line| line.split(':').nth(1))
+                .map(|s| s.trim() == "yes")
+                .unwrap_or(false);
 
-        if !powered {
-            return (false, "Bluetooth Off".to_string());
-        }
+            if !powered { return (false, "Bluetooth Off".to_string()); }
 
-        // Check for connected devices
-        if let Some(devices_str) = run_command_with_timeout("bluetoothctl", &["devices", "Connected"]) {
-            if let Some(first_device) = devices_str.lines().next() {
-                // Extract device name (format: "Device MAC_ADDRESS Name")
-                let parts: Vec<&str> = first_device.split_whitespace().collect();
-                if parts.len() >= 3 {
-                    let name = parts[2..].join(" ");
-                    return (true, name);
+            if let Ok(devices_output) = Command::new("bluetoothctl").args(&["devices", "Connected"]).output() {
+                if let Ok(devices_str) = String::from_utf8(devices_output.stdout) {
+                    if let Some(first_device) = devices_str.lines().next() {
+                        let parts: Vec<&str> = first_device.split_whitespace().collect();
+                        if parts.len() >= 3 {
+                            return (true, parts[2..].join(" "));
+                        }
+                    }
                 }
             }
-        }
 
-        // Bluetooth is on but no device connected
-        return (true, "No Device".to_string());
+            return (true, "No Device".to_string());
+        }
     }
 
-    // Fallback - assume bluetooth is available but off
     (false, "Bluetooth Off".to_string())
 }
 
 pub fn toggle_bluetooth_cmd(enable: bool) {
-    if enable {
-        let _ = Command::new("bluetoothctl").args(&["power", "on"]).output();
-    } else {
-        let _ = Command::new("bluetoothctl").args(&["power", "off"]).output();
-    }
+    let state = if enable { "on" } else { "off" };
+    let _ = Command::new("bluetoothctl").args(&["power", state]).output();
 }
+
 
 pub fn toggle_eye_care_cmd(enable: bool) {
     if enable {
