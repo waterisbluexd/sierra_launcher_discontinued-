@@ -116,7 +116,7 @@ pub fn fetch_bluetooth_status() -> (bool, String) {
                         if parts.len() >= 3 {
                             return (true, parts[2..].join(" "));
                         }
-                    }
+                    }//asdas
                 }
             }
 
