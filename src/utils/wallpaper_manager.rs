@@ -5,6 +5,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WallpaperCache {
+    pub last_wallpaper: PathBuf,
+}
+
 #[derive(Debug)]
 pub struct WallpaperManager {
     wallpaper_dir: PathBuf,
@@ -281,6 +286,28 @@ impl WallpaperManager {
                 .join("wallpapers")
         } else {
             PathBuf::from(".cache/sierra/wallpapers")
+        }
+    }
+
+    /// Read last wallpaper from cache
+    pub fn get_last_wallpaper(&self) -> Option<PathBuf> {
+        let cache_path = self.cache_dir.join("last_wallpaper.json");
+        if let Ok(content) = fs::read_to_string(&cache_path) {
+            if let Ok(cache) = serde_json::from_str::<WallpaperCache>(&content) {
+                return Some(cache.last_wallpaper);
+            }
+        }
+        None
+    }
+
+    /// Save last wallpaper to cache
+    pub fn set_last_wallpaper(&self, path: &PathBuf) {
+        let cache_path = self.cache_dir.join("last_wallpaper.json");
+        let cache = WallpaperCache {
+            last_wallpaper: path.clone(),
+        };
+        if let Ok(json) = serde_json::to_string_pretty(&cache) {
+            let _ = fs::write(&cache_path, json);
         }
     }
 }

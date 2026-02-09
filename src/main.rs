@@ -62,11 +62,23 @@ fn new() -> (Launcher, Command<Message>) {
     let config = Config::load();
     eprintln!("[Main] Config load: {:?}", start.elapsed());
 
+    let mut wallpaper_selected_index = 0;
+
     let wallpaper_index: Option<WallpaperIndex> =
         if let Some(wallpaper_dir) = config.wallpaper_dir.clone() {
-            let manager = WallpaperManager::new(wallpaper_dir);
+            let manager = WallpaperManager::new(wallpaper_dir.clone());
             manager.ensure_cache();
-            manager.load_index()
+            let index = manager.load_index();
+
+            if let (Some(last_wallpaper_path), Some(idx)) = (manager.get_last_wallpaper(), &index) {
+                if let Some(pos) = idx.wallpapers.iter().position(|e| e.path == last_wallpaper_path) {
+                    wallpaper_selected_index = pos;
+                    if let Some(entry) = idx.wallpapers.get(pos) {
+                        manager.set_wallpaper(entry);
+                    }
+                }
+            }
+            index
         } else {
             None
         };
@@ -112,7 +124,7 @@ fn new() -> (Launcher, Command<Message>) {
 
             // ✅ NEW — wallpaper data now lives in state
             wallpaper_index,
-            wallpaper_selected_index: 0,
+            wallpaper_selected_index,
         },
         Command::none(),
     )
