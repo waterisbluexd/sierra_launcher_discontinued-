@@ -128,13 +128,20 @@ impl WallpaperManager {
 
         let _ = Command::new("gslapper").args(&gslapper_args).spawn();
         eprintln!("[Wallpaper] Set to: {:?}", entry.name);
-        if let WallpaperKind::Image = entry.kind {
-            eprintln!("[Pywal] Updating colors from image...");
+        let wal_path = match entry.kind {
+            WallpaperKind::Image => entry.path.clone(),
+            WallpaperKind::Video => entry.thumbnail.clone(),
+        };
+
+        if wal_path.exists() {
+            eprintln!("[Pywal] Updating colors from: {:?}", wal_path);
             let _ = Command::new("wal")
                 .arg("-i")
-                .arg(entry.path.clone())
-                .arg("-n") // Skip setting the wallpaper
+                .arg(wal_path)
+                .arg("-n")
                 .output();
+        } else {
+            eprintln!("[Pywal] Could not find path for wal: {:?}", wal_path);
         }
     }
 
@@ -277,13 +284,20 @@ impl WallpaperManager {
 
         let _ = Command::new("gslapper").args(&gslapper_args).spawn();
         eprintln!("[Wallpaper] Set to: {:?}", entry.name);
-        if let WallpaperKind::Image = entry.kind {
-            eprintln!("[Pywal] Updating colors from image...");
+        let wal_path = match entry.kind {
+            WallpaperKind::Image => entry.path.clone(),
+            WallpaperKind::Video => entry.thumbnail.clone(),
+        };
+
+        if wal_path.exists() {
+            eprintln!("[Pywal] Updating colors from: {:?}", wal_path);
             let _ = Command::new("wal")
                 .arg("-i")
-                .arg(entry.path.clone())
-                .arg("-n") // Skip setting the wallpaper
+                .arg(wal_path)
+                .arg("-n")
                 .output();
+        } else {
+            eprintln!("[Pywal] Could not find path for wal: {:?}", wal_path);
         }
     }
 
