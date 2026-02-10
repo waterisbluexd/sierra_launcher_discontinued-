@@ -50,6 +50,7 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                         
                         keyboard::Key::Named(Named::ArrowLeft) => {
                             if modifiers.shift() {
+                                // FIX: Toggle clipboard visibility
                                 launcher.clipboard_visible = !launcher.clipboard_visible;
                             } else {
                                 return Command::perform(async {}, |_| Message::CyclePanel(Direction::Left));
@@ -58,6 +59,7 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                         
                         keyboard::Key::Named(Named::ArrowRight) => {
                             if modifiers.shift() {
+                                // FIX: Toggle clipboard visibility
                                 launcher.clipboard_visible = !launcher.clipboard_visible;
                             } else {
                                 return Command::perform(async {}, |_| Message::CyclePanel(Direction::Right));
@@ -102,6 +104,19 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 launcher.app_list.start_loading();
                 eprintln!("[Main] Triggered lazy app loading");
                 launcher.system_panel.start();
+                
+                // FIX: Load wallpaper index asynchronously on first frame
+                if launcher.wallpaper_index.is_none() {
+                    if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
+                        let wp_dir = wallpaper_dir.clone();
+                        std::thread::spawn(move || {
+                            let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wp_dir);
+                            if let Some(_index) = manager.load_index() {
+                                eprintln!("[Wallpaper] Index loaded in background");
+                            }
+                        });
+                    }
+                }
                 
                 if launcher.config.use_pywal && launcher.watcher.is_none() {
                     launcher.watcher = ColorWatcher::new().ok();
@@ -181,6 +196,21 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             
             if launcher.current_panel == Panel::Services {
                 launcher.services_panel.schedule_refresh();
+            }
+            
+            // FIX: Load wallpaper index when switching to wallpaper panel
+            if launcher.current_panel == Panel::Wallpaper && launcher.wallpaper_index.is_none() {
+                if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
+                    let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
+                    launcher.wallpaper_index = manager.load_index();
+                    
+                    // Restore selected index
+                    if let (Some(last_wallpaper_path), Some(ref idx)) = (manager.get_last_wallpaper(), &launcher.wallpaper_index) {
+                        if let Some(pos) = idx.wallpapers.iter().position(|e| e.path == last_wallpaper_path) {
+                            launcher.wallpaper_selected_index = pos;
+                        }
+                    }
+                }
             }
             
             Command::none()

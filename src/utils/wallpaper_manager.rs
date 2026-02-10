@@ -47,12 +47,23 @@ impl WallpaperManager {
         }
     }
 
-    /// ✅ NEW: Restore last wallpaper on launcher startup (called immediately)
+    /// ✅ FIXED: Restore last wallpaper WITHOUT killing existing gslapper (prevents flicker)
     pub fn restore_last_wallpaper(&self) {
         if let Some(last_wallpaper_path) = self.get_last_wallpaper() {
             if !last_wallpaper_path.exists() {
                 eprintln!("[Wallpaper] Last wallpaper no longer exists: {:?}", last_wallpaper_path);
                 return;
+            }
+
+            // Check if gslapper is already running with this wallpaper
+            if let Ok(output) = Command::new("pgrep").arg("-a").arg("gslapper").output() {
+                if let Ok(stdout) = String::from_utf8(output.stdout) {
+                    let wallpaper_str = last_wallpaper_path.to_string_lossy();
+                    if stdout.contains(wallpaper_str.as_ref()) {
+                        eprintln!("[Wallpaper] ✓ Already running: {:?}", last_wallpaper_path);
+                        return; // Already running with correct wallpaper, don't restart
+                    }
+                }
             }
 
             // Determine wallpaper type
@@ -71,7 +82,7 @@ impl WallpaperManager {
                 }
             };
 
-            // Create entry manually (no need for full index)
+            // Create entry manually
             let entry = WallpaperEntry {
                 name: last_wallpaper_path
                     .file_name()
@@ -80,20 +91,55 @@ impl WallpaperManager {
                     .to_string(),
                 path: last_wallpaper_path.clone(),
                 kind,
-                thumbnail: PathBuf::new(), // Not needed for restoration
+                thumbnail: PathBuf::new(),
             };
 
             eprintln!("[Wallpaper] ✓ Restoring last wallpaper: {:?}", entry.name);
-            self.set_wallpaper(&entry);
+            
+            // FIX: Use set_wallpaper_gentle for restoration (doesn't kill existing)
+            self.set_wallpaper_gentle(&entry);
         } else {
             eprintln!("[Wallpaper] No last wallpaper found in cache");
         }
     }
 
+    /// ✅ NEW: Gentle wallpaper setting (checks if already running first)
+    fn set_wallpaper_gentle(&self, entry: &WallpaperEntry) {
+        let wallpaper_path = entry.path.to_string_lossy();
+
+        // Check if already running
+        if let Ok(output) = Command::new("pgrep").arg("-a").arg("gslapper").output() {
+            if let Ok(stdout) = String::from_utf8(output.stdout) {
+                if stdout.contains(wallpaper_path.as_ref()) {
+                    eprintln!("[Wallpaper] Already running, skipping");
+                    return;
+                }
+            }
+        }
+
+        // Kill existing gslapper only if different wallpaper
+        let _ = Command::new("pkill").arg("-9").arg("gslapper").output();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        let gslapper_args = match entry.kind {
+            WallpaperKind::Video => vec!["-o", "loop no-audio", "*", &wallpaper_path],
+            WallpaperKind::Image => vec!["-o", "fill", "*", &wallpaper_path],
+        };
+
+        let _ = Command::new("gslapper").args(&gslapper_args).spawn();
+        eprintln!("[Wallpaper] Set to: {:?}", entry.name);
+        if let WallpaperKind::Image = entry.kind {
+            eprintln!("[Pywal] Updating colors from image...");
+            let _ = Command::new("wal")
+                .arg("-i")
+                .arg(entry.path.clone())
+                .arg("-n") // Skip setting the wallpaper
+                .output();
+        }
+    }
+
     /// OPTIMIZED: Only generate cache if it doesn't exist or is invalid
-    /// This function should be called in a background thread
     pub fn ensure_cache(&self) {
-        // Check if valid cache already exists
         if self.load_index().is_some() {
             eprintln!("[Wallpaper] Valid cache exists - skipping generation");
             return;
@@ -144,7 +190,6 @@ impl WallpaperManager {
 
             let thumb_path = thumbs_dir.join(format!("{}.jpg", name));
 
-            // Only generate thumbnail if it doesn't exist
             if !thumb_path.exists() {
                 if needs_ffmpeg {
                     Self::generate_video_thumbnail(&path, &thumb_path);
@@ -182,13 +227,11 @@ impl WallpaperManager {
         }
     }
 
-    /// Load index.json from cache, or None if cache is invalid/outdated
     pub fn load_index(&self) -> Option<WallpaperIndex> {
         let index_path = self.cache_dir.join("index.json");
         let content = fs::read_to_string(&index_path).ok()?;
         let index: WallpaperIndex = serde_json::from_str(&content).ok()?;
 
-        // Validate cache: check if wallpapers still exist and no new ones added
         if !self.is_cache_valid(&index) {
             eprintln!("[Wallpaper] Cache outdated - wallpapers changed");
             return None;
@@ -197,7 +240,6 @@ impl WallpaperManager {
         Some(index)
     }
 
-    /// OPTIMIZED: Faster validation - just count files instead of comparing names
     fn is_cache_valid(&self, index: &WallpaperIndex) -> bool {
         let Ok(entries) = fs::read_dir(&self.wallpaper_dir) else {
             return false;
@@ -222,13 +264,8 @@ impl WallpaperManager {
     }
 
     pub fn set_wallpaper(&self, entry: &WallpaperEntry) {
-        // KILL ALL EXISTING gSlapper INSTANCES FIRST
-        let _ = Command::new("pkill")
-            .arg("-9")  // Force kill
-            .arg("gslapper")
-            .output();
-        
-        // Wait for processes to fully die
+        // ALWAYS kill when explicitly setting a new wallpaper
+        let _ = Command::new("pkill").arg("-9").arg("gslapper").output();
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         let wallpaper_path = entry.path.to_string_lossy();
@@ -238,11 +275,16 @@ impl WallpaperManager {
             WallpaperKind::Image => vec!["-o", "fill", "*", &wallpaper_path],
         };
 
-        let _ = Command::new("gslapper")
-            .args(&gslapper_args)
-            .spawn();
-
+        let _ = Command::new("gslapper").args(&gslapper_args).spawn();
         eprintln!("[Wallpaper] Set to: {:?}", entry.name);
+        if let WallpaperKind::Image = entry.kind {
+            eprintln!("[Pywal] Updating colors from image...");
+            let _ = Command::new("wal")
+                .arg("-i")
+                .arg(entry.path.clone())
+                .arg("-n") // Skip setting the wallpaper
+                .output();
+        }
     }
 
     fn generate_image_thumbnail(source: &PathBuf, thumbnail: &PathBuf) {
@@ -262,7 +304,6 @@ impl WallpaperManager {
             }
         };
         
-        // Faster resize algorithm for thumbnails
         let thumb = img.resize(480, 270, image::imageops::FilterType::Triangle);
         if let Err(e) = thumb.save_with_format(thumbnail, image::ImageFormat::Jpeg) {
             eprintln!("[Wallpaper] Failed to save thumbnail {:?}: {}", thumbnail, e);

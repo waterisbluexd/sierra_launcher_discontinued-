@@ -43,6 +43,7 @@ fn main() -> Result<(), iced_layershell::Error> {
         .subscription(|_| app::subscription::subscription())
         .run()?;
     
+    utils::data::save_on_shutdown();
     eprintln!("[Main] Total runtime: {:?}", start.elapsed());
     Ok(())
 }

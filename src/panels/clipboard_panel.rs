@@ -28,11 +28,18 @@ fn create_preview_lines(content: &str) -> Vec<String> {
             }
 
             if word.len() > CHARS_PER_LINE {
-                let truncated: String = word
-                    .chars()
-                    .take(CHARS_PER_LINE.saturating_sub(3))
-                    .collect();
-                lines.push(format!("{truncated}..."));
+                // FIX: UTF-8 safe truncation
+                let mut truncated = String::new();
+                let mut char_count = 0;
+                for ch in word.chars() {
+                    if char_count >= CHARS_PER_LINE.saturating_sub(3) {
+                        break;
+                    }
+                    truncated.push(ch);
+                    char_count += 1;
+                }
+                truncated.push_str("...");
+                lines.push(truncated);
             } else {
                 current.push_str(word);
             }
@@ -49,8 +56,18 @@ fn create_preview_lines(content: &str) -> Vec<String> {
 
     if words.peek().is_some() && !lines.is_empty() {
         if let Some(last) = lines.last_mut() {
-            if last.len() > CHARS_PER_LINE.saturating_sub(3) {
-                last.truncate(CHARS_PER_LINE.saturating_sub(3));
+            // FIX: UTF-8 safe truncation for ellipsis
+            if last.chars().count() > CHARS_PER_LINE.saturating_sub(3) {
+                let mut truncated = String::new();
+                let mut char_count = 0;
+                for ch in last.chars() {
+                    if char_count >= CHARS_PER_LINE.saturating_sub(3) {
+                        break;
+                    }
+                    truncated.push(ch);
+                    char_count += 1;
+                }
+                *last = truncated;
             }
             last.push_str("...");
         }
