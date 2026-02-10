@@ -10,7 +10,6 @@ use iced::{Task as Command, Color};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use crate::utils::theme::Theme;
-use crate::utils::watcher::ColorWatcher;
 use crate::utils::wallpaper_manager::{WallpaperManager, WallpaperIndex};
 use crate::config::Config;
 use crate::panels::search_bar::SearchBar;
@@ -51,6 +50,7 @@ fn main() -> Result<(), iced_layershell::Error> {
 fn new() -> (Launcher, Command<Message>) {
     let start = Instant::now();
 
+    // NON-BLOCKING: Clipboard init in background
     thread::spawn(|| {
         crate::utils::data::init();
     });
@@ -61,8 +61,18 @@ fn new() -> (Launcher, Command<Message>) {
     let wallpaper_index: Option<WallpaperIndex> =
         if let Some(wallpaper_dir) = config.wallpaper_dir.clone() {
             let manager = WallpaperManager::new(wallpaper_dir.clone());
+            
+            // ✅ CRITICAL FIX: Restore last wallpaper IMMEDIATELY on startup
+            let manager_restore = WallpaperManager::new(wallpaper_dir.clone());
+            thread::spawn(move || {
+                eprintln!("[Main] Restoring last wallpaper...");
+                manager_restore.restore_last_wallpaper();
+            });
+            
+            // Fast synchronous load of index (just reading JSON)
             let index = manager.load_index();
             
+            // If no cache, generate in background (non-blocking)
             if index.is_none() {
                 let manager_bg = WallpaperManager::new(wallpaper_dir.clone());
                 thread::spawn(move || {
@@ -70,6 +80,7 @@ fn new() -> (Launcher, Command<Message>) {
                 });
             }
 
+            // Restore selected index from last wallpaper
             if let (Some(last_wallpaper_path), Some(idx)) = (manager.get_last_wallpaper(), &index) {
                 if let Some(pos) = idx.wallpapers.iter().position(|e| e.path == last_wallpaper_path) {
                     wallpaper_selected_index = pos;
@@ -81,12 +92,13 @@ fn new() -> (Launcher, Command<Message>) {
         };
 
     let theme = Theme::load_from_config(&config);
+    
+    // NON-BLOCKING: Start clipboard monitor in background
     let _clipboard_monitor = crate::utils::monitor::start_monitor();
-    let watcher = None;
 
     let search_bar = SearchBar::new();
-    let app_list = AppList::new();
-    let weather_panel = WeatherPanel::new();
+    let app_list = AppList::new();  // Empty initially, loads lazily
+    let weather_panel = WeatherPanel::new();  // Already async
     let music_player = MusicPlayer::new();
     let system_panel = SystemPanel::new();
     let services_panel = ServicesPanel::new();
@@ -99,7 +111,7 @@ fn new() -> (Launcher, Command<Message>) {
     (
         Launcher {
             theme,
-            watcher,
+            watcher: None,  // Initialize lazily on first frame
             config,
             search_bar,
             app_list,

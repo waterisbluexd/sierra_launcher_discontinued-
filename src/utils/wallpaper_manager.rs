@@ -47,6 +47,49 @@ impl WallpaperManager {
         }
     }
 
+    /// ✅ NEW: Restore last wallpaper on launcher startup (called immediately)
+    pub fn restore_last_wallpaper(&self) {
+        if let Some(last_wallpaper_path) = self.get_last_wallpaper() {
+            if !last_wallpaper_path.exists() {
+                eprintln!("[Wallpaper] Last wallpaper no longer exists: {:?}", last_wallpaper_path);
+                return;
+            }
+
+            // Determine wallpaper type
+            let ext = last_wallpaper_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+
+            let kind = match ext.as_str() {
+                "mp4" | "mkv" | "webm" | "avi" => WallpaperKind::Video,
+                "jpg" | "jpeg" | "png" | "webp" | "bmp" => WallpaperKind::Image,
+                _ => {
+                    eprintln!("[Wallpaper] Unknown file type: {:?}", ext);
+                    return;
+                }
+            };
+
+            // Create entry manually (no need for full index)
+            let entry = WallpaperEntry {
+                name: last_wallpaper_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string(),
+                path: last_wallpaper_path.clone(),
+                kind,
+                thumbnail: PathBuf::new(), // Not needed for restoration
+            };
+
+            eprintln!("[Wallpaper] ✓ Restoring last wallpaper: {:?}", entry.name);
+            self.set_wallpaper(&entry);
+        } else {
+            eprintln!("[Wallpaper] No last wallpaper found in cache");
+        }
+    }
+
     /// OPTIMIZED: Only generate cache if it doesn't exist or is invalid
     /// This function should be called in a background thread
     pub fn ensure_cache(&self) {
@@ -185,18 +228,8 @@ impl WallpaperManager {
             .arg("gslapper")
             .output();
         
-        // Wait longer for processes to fully die
-        std::thread::sleep(std::time::Duration::from_millis(200));
-
-        // Clean up any leftover state files
-        let state_files = [
-            "/tmp/gslapper.state",
-            "/tmp/.gslapper.state",
-            "/tmp/gslapper_state",
-        ];
-        for file in &state_files {
-            let _ = std::fs::remove_file(file);
-        }
+        // Wait for processes to fully die
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         let wallpaper_path = entry.path.to_string_lossy();
 

@@ -1,0 +1,21 @@
+[Unit]
+Description=Restore Sierra Launcher Wallpaper
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/restore-wallpaper.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+# Restart on failure
+Restart=on-failure
+RestartSec=5s
+
+# Environment
+Environment=WAYLAND_DISPLAY=wayland-0
+
+[Install]
+WantedBy=graphical-session.target
