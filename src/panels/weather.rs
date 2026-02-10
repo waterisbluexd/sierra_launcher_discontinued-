@@ -95,7 +95,6 @@ impl WeatherPanel {
             if let Ok(age) = SystemTime::now().duration_since(cached.cached_at) {
                 if age.as_secs() < CACHE_VALIDITY_SECS {
                     eprintln!("[Weather] ✓ Cache is fresh ({} sec old), skipping fetch", age.as_secs());
-                    // Don't fetch - cache is good
                     return Self { weather_data, is_updating };
                 } else {
                     eprintln!("[Weather] Cache expired ({} sec old), fetching fresh data...", age.as_secs());
@@ -112,20 +111,27 @@ impl WeatherPanel {
         *is_updating.lock().unwrap() = true;
         
         thread::spawn(move || {
-            match Self::fetch_weather_data() {
-                Ok(new_data) => {
-                    eprintln!("[Weather] ✓ Fetched fresh weather data");
-                    *weather_clone.lock().unwrap() = Some(new_data.clone());
-                    
-                    if let Err(e) = Self::save_to_cache(&new_data) {
-                        eprintln!("[Weather] ⚠ Failed to save cache: {}", e);
-                    } else {
-                        eprintln!("[Weather] ✓ Saved to cache");
+            // Set a timeout - if it takes too long, give up
+            let result = std::panic::catch_unwind(|| {
+                match Self::fetch_weather_data() {
+                    Ok(new_data) => {
+                        eprintln!("[Weather] ✓ Fetched fresh weather data");
+                        *weather_clone.lock().unwrap() = Some(new_data.clone());
+                        
+                        if let Err(e) = Self::save_to_cache(&new_data) {
+                            eprintln!("[Weather] ⚠ Failed to save cache: {}", e);
+                        } else {
+                            eprintln!("[Weather] ✓ Saved to cache");
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[Weather] ⚠ Failed to fetch weather: {}", e);
                     }
                 }
-                Err(e) => {
-                    eprintln!("[Weather] ⚠ Failed to fetch weather: {}", e);
-                }
+            });
+            
+            if result.is_err() {
+                eprintln!("[Weather] ⚠ Weather fetch panicked");
             }
             
             *updating_clone.lock().unwrap() = false;

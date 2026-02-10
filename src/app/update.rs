@@ -9,6 +9,7 @@ use crate::app::state::{Launcher, Panel, Direction};
 use crate::app::message::Message;
 use crate::panels::{search_bar, app_list};
 use crate::utils::theme::WalColors;
+use crate::utils::watcher::ColorWatcher; 
 use std::time::{Duration, Instant};
 
 pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
@@ -94,7 +95,6 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         }
 
         Message::CheckColors => {
-            // ★ FIRST FRAME: Focus search bar and trigger app loading ★
             if launcher.is_first_frame {
                 launcher.is_first_frame = false;
                 
@@ -102,10 +102,14 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 launcher.app_list.start_loading();
                 eprintln!("[Main] Triggered lazy app loading");
                 launcher.system_panel.start();
+                
+                if launcher.config.use_pywal && launcher.watcher.is_none() {
+                    launcher.watcher = ColorWatcher::new().ok();
+                }
+                
                 return focus(launcher.search_bar.input_id.clone());
             }
             
-            // ★ CHECK IF APPS FINISHED LOADING ★
             if launcher.app_list.check_loaded() {
                 eprintln!("[Main] Apps finished loading - UI will update automatically");
             }
@@ -115,10 +119,8 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             launcher.title_animator.update();
             
             let now = Instant::now();
-            if now.duration_since(launcher.last_color_check) > Duration::from_secs(1) {
+            if now.duration_since(launcher.last_color_check) > Duration::from_secs(2) {
                 launcher.last_color_check = now;
-                
-                // Only check for pywal changes if pywal is enabled
                 if launcher.config.use_pywal {
                     if let Some(ref watcher) = launcher.watcher {
                         if watcher.check_for_changes() {

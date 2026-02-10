@@ -74,13 +74,14 @@ pub fn add_item(content: ClipboardContent) {
         history.truncate(MAX_HISTORY);
     }
     
-    // Save to cache after adding
-    save_to_cache(history);
+    // Save to cache only every 5 items to reduce I/O
+    static SAVE_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let count = SAVE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     
-    // Debug output
-    eprintln!("Clipboard history: {} items", history.len());
+    if count % 5 == 0 {
+        save_to_cache(history);
+    }
 }
-
 /// Check if two clipboard contents are the same.
 fn is_same_content(a: &ClipboardContent, b: &ClipboardContent) -> bool {
     match (a, b) {
@@ -151,5 +152,12 @@ pub fn delete_item(index: usize) -> bool {
         true
     } else {
         false
+    }
+}
+
+pub fn save_on_shutdown() {
+    let history = CLIPBOARD_HISTORY.read().unwrap();
+    if let Some(h) = history.as_ref() {
+        save_to_cache(h);
     }
 }
