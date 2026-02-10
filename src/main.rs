@@ -10,7 +10,7 @@ use iced::{Task as Command, Color};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use crate::utils::theme::Theme;
-use crate::utils::wallpaper_manager::{WallpaperManager, WallpaperIndex};
+use crate::utils::wallpaper_manager::WallpaperManager;  // Removed WallpaperIndex
 use crate::config::Config;
 use crate::panels::search_bar::SearchBar;
 use crate::panels::app_list::AppList;
@@ -50,54 +50,73 @@ fn main() -> Result<(), iced_layershell::Error> {
 fn new() -> (Launcher, Command<Message>) {
     let start = Instant::now();
 
-    // NON-BLOCKING: Clipboard init in background
+    // ═══════════════════════════════════════════════════════════
+    // ULTRA-FAST PATH: Only absolute essentials before UI render
+    // ═══════════════════════════════════════════════════════════
+
+    // Config is fast (10ms) - keep synchronous
+    let config = Config::load();
+    eprintln!("[Perf] Config loaded: {:?}", start.elapsed());
+
+    // Theme is fast (15ms) - keep synchronous  
+    let theme = Theme::load_from_config(&config);
+    eprintln!("[Perf] Theme loaded: {:?}", start.elapsed());
+
+    // ═══════════════════════════════════════════════════════════
+    // EVERYTHING ELSE: Background threads (non-blocking)
+    // ═══════════════════════════════════════════════════════════
+
+    // 1. Clipboard init (background)
     thread::spawn(|| {
+        let t = Instant::now();
         crate::utils::data::init();
+        eprintln!("[Background] Clipboard init: {:?}", t.elapsed());
     });
 
-    let config = Config::load();
-    let mut wallpaper_selected_index = 0;
+    // 2. Clipboard monitor (background)
+    thread::spawn(|| {
+        let t = Instant::now();
+        let _monitor = crate::utils::monitor::start_monitor();
+        eprintln!("[Background] Clipboard monitor: {:?}", t.elapsed());
+        // Keep monitor alive
+        loop { std::thread::park(); }
+    });
 
-    let wallpaper_index: Option<WallpaperIndex> =
-        if let Some(wallpaper_dir) = config.wallpaper_dir.clone() {
-            let manager = WallpaperManager::new(wallpaper_dir.clone());
-            
-            // ✅ CRITICAL FIX: Restore last wallpaper IMMEDIATELY on startup
-            let manager_restore = WallpaperManager::new(wallpaper_dir.clone());
-            thread::spawn(move || {
-                eprintln!("[Main] Restoring last wallpaper...");
-                manager_restore.restore_last_wallpaper();
-            });
-            
-            // Fast synchronous load of index (just reading JSON)
-            let index = manager.load_index();
-            
-            // If no cache, generate in background (non-blocking)
-            if index.is_none() {
-                let manager_bg = WallpaperManager::new(wallpaper_dir.clone());
-                thread::spawn(move || {
-                    manager_bg.ensure_cache();
-                });
-            }
+    // 3. Wallpaper restoration (background - immediate)
+    if let Some(ref wallpaper_dir) = config.wallpaper_dir {
+        let wp_dir = wallpaper_dir.clone();
+        thread::spawn(move || {
+            let t = Instant::now();
+            let manager = WallpaperManager::new(wp_dir);
+            manager.restore_last_wallpaper();
+            eprintln!("[Background] Wallpaper restored: {:?}", t.elapsed());
+        });
+    }
 
-            // Restore selected index from last wallpaper
-            if let (Some(last_wallpaper_path), Some(idx)) = (manager.get_last_wallpaper(), &index) {
-                if let Some(pos) = idx.wallpapers.iter().position(|e| e.path == last_wallpaper_path) {
-                    wallpaper_selected_index = pos;
-                }
-            }
-            index
-        } else {
-            None
-        };
-
-    let theme = Theme::load_from_config(&config);
+    // 4. Wallpaper index loading (background)
+    let wallpaper_dir_clone = config.wallpaper_dir.clone();
     
-    // NON-BLOCKING: Start clipboard monitor in background
-    let _clipboard_monitor = crate::utils::monitor::start_monitor();
+    if let Some(wp_dir) = wallpaper_dir_clone {
+        thread::spawn(move || {
+            let t = Instant::now();
+            let manager = WallpaperManager::new(wp_dir.clone());
+            
+            // Load or generate index
+            if manager.load_index().is_none() {
+                eprintln!("[Background] Generating wallpaper cache...");
+                manager.ensure_cache();
+            }
+            
+            eprintln!("[Background] Wallpaper index ready: {:?}", t.elapsed());
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // UI Components: Create with minimal overhead
+    // ═══════════════════════════════════════════════════════════
 
     let search_bar = SearchBar::new();
-    let app_list = AppList::new();  // Empty initially, loads lazily
+    let app_list = AppList::new();  // Empty, loads lazily on first frame
     let weather_panel = WeatherPanel::new();  // Already async
     let music_player = MusicPlayer::new();
     let system_panel = SystemPanel::new();
@@ -106,12 +125,12 @@ fn new() -> (Launcher, Command<Message>) {
         .with_mode(config.get_animation_mode())
         .with_speed(80);
 
-    eprintln!("[Main] Init: {:?}", start.elapsed());
+    eprintln!("[Perf] Total init time: {:?}", start.elapsed());
 
     (
         Launcher {
             theme,
-            watcher: None,  // Initialize lazily on first frame
+            watcher: None,  // Initialize on first frame if needed
             config,
             search_bar,
             app_list,
@@ -128,8 +147,8 @@ fn new() -> (Launcher, Command<Message>) {
             clipboard_visible: false,
             clipboard_selected_index: 0,
             is_first_frame: true,
-            wallpaper_index,
-            wallpaper_selected_index,
+            wallpaper_index: None,  
+            wallpaper_selected_index: 0,
         },
         Command::none(),
     )
