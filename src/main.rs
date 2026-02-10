@@ -49,31 +49,18 @@ fn main() -> Result<(), iced_layershell::Error> {
 
 fn new() -> (Launcher, Command<Message>) {
     let start = Instant::now();
-
-    // ═══════════════════════════════════════════════════════════
-    // ULTRA-FAST PATH: Only absolute essentials before UI render
-    // ═══════════════════════════════════════════════════════════
-
-    // Config is fast (10ms) - keep synchronous
     let config = Config::load();
     eprintln!("[Perf] Config loaded: {:?}", start.elapsed());
 
-    // Theme is fast (15ms) - keep synchronous  
     let theme = Theme::load_from_config(&config);
     eprintln!("[Perf] Theme loaded: {:?}", start.elapsed());
-
-    // ═══════════════════════════════════════════════════════════
-    // EVERYTHING ELSE: Background threads (non-blocking)
-    // ═══════════════════════════════════════════════════════════
-
-    // 1. Clipboard init (background)
     thread::spawn(|| {
         let t = Instant::now();
         crate::utils::data::init();
         eprintln!("[Background] Clipboard init: {:?}", t.elapsed());
     });
 
-    // 2. Clipboard monitor (background)
+
     thread::spawn(|| {
         let t = Instant::now();
         let _monitor = crate::utils::monitor::start_monitor();
@@ -93,7 +80,6 @@ fn new() -> (Launcher, Command<Message>) {
         });
     }
 
-    // 4. Wallpaper index loading (background)
     let wallpaper_dir_clone = config.wallpaper_dir.clone();
     
     if let Some(wp_dir) = wallpaper_dir_clone {
@@ -110,11 +96,6 @@ fn new() -> (Launcher, Command<Message>) {
             eprintln!("[Background] Wallpaper index ready: {:?}", t.elapsed());
         });
     }
-
-    // ═══════════════════════════════════════════════════════════
-    // UI Components: Create with minimal overhead
-    // ═══════════════════════════════════════════════════════════
-
     let search_bar = SearchBar::new();
     let app_list = AppList::new();  // Empty, loads lazily on first frame
     let weather_panel = WeatherPanel::new();  // Already async
