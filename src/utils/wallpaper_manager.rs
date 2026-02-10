@@ -16,9 +16,7 @@ pub struct WallpaperManager {
     cache_dir: PathBuf,
 }
 
-/* ============================
-   Index data structures
-   ============================ */
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WallpaperIndex {
@@ -32,7 +30,6 @@ pub struct WallpaperEntry {
     pub name: String,
     pub path: PathBuf,
     pub kind: WallpaperKind,
-    /// ✅ NOW ALL ENTRIES HAVE THUMBNAILS (images + videos)
     pub thumbnail: PathBuf,
 }
 
@@ -43,9 +40,7 @@ pub enum WallpaperKind {
     Video,
 }
 
-/* ============================
-   Implementation
-   ============================ */
+
 
 impl WallpaperManager {
     pub fn new(wallpaper_dir: PathBuf) -> Self {
@@ -104,7 +99,6 @@ impl WallpaperManager {
                 _ => continue, // skip unknown formats
             };
 
-            // ✅ GENERATE THUMBNAIL FOR EVERYTHING
             let thumb_path = thumbs_dir.join(format!("{}.jpg", name));
 
             if !thumb_path.exists() {
@@ -225,7 +219,6 @@ impl WallpaperManager {
         eprintln!("[Wallpaper] Set to: {:?}", entry.name);
     }
 
-    /// ✅ NEW: Generate thumbnail from image using `image` crate (FAST)
     fn generate_image_thumbnail(source: &PathBuf, thumbnail: &PathBuf) {
         use image::ImageReader;
         
@@ -262,7 +255,7 @@ impl WallpaperManager {
                 "-i",
                 video.to_str().unwrap(),
                 "-vf",
-                "scale=480:270", // ✅ Match image thumbnail size
+                "scale=480:270", 
                 "-frames:v",
                 "1",
                 "-q:v",

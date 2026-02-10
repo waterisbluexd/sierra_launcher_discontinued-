@@ -7,10 +7,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-// ─────────────────────────────────────────────
-// GPU Manager (New Modular Logic)
-// ─────────────────────────────────────────────
-
 #[derive(serde::Deserialize)]
 struct RocmSmiCard {
     #[serde(rename = "GPU use (%)")]
@@ -44,7 +40,6 @@ impl GpuManager {
         }
     }
 
-    /// Check if a command exists on the system's PATH (Unix-like systems)
     fn command_exists(cmd: &str) -> bool {
         let output = std::process::Command::new("which")
             .arg(cmd)
@@ -126,10 +121,6 @@ impl GpuManager {
 }
 
 
-// ─────────────────────────────────────────────
-// System Panel (Adapted to use GpuManager)
-// ─────────────────────────────────────────────
-
 pub struct SystemPanel {
     metrics: Arc<Mutex<Option<SystemMetrics>>>,
     started: bool,
@@ -159,7 +150,6 @@ impl Default for SystemMetrics {
 }
 
 impl SystemPanel {
-    /// Cheap, pure constructor — no side effects
     pub fn new() -> Self {
         Self {
             metrics: Arc::new(Mutex::new(None)),
@@ -167,7 +157,6 @@ impl SystemPanel {
         }
     }
 
-    /// Explicit deferred initialization (call after first frame)
     pub fn start(&mut self) {
         if self.started {
             return;
@@ -177,16 +166,13 @@ impl SystemPanel {
         let metrics = Arc::clone(&self.metrics);
 
         thread::spawn(move || {
-            // ── One-time expensive initialization ──
             let mut sys = System::new_all();
             let mut networks = Networks::new_with_refreshed_list();
             let mut disks = Disks::new_with_refreshed_list();
             let gpu_manager = Arc::new(GpuManager::new());
 
-            // Mark data as available
             *metrics.lock().unwrap() = Some(SystemMetrics::default());
 
-            // ── Periodic refresh loop ──
             loop {
                 sys.refresh_cpu_usage();
                 sys.refresh_memory();
@@ -195,10 +181,8 @@ impl SystemPanel {
 
                 let mut guard = metrics.lock().unwrap();
                 if let Some(ref mut m) = *guard {
-                    // CPU
                     m.cpu_usage = sys.global_cpu_usage();
 
-                    // Memory
                     let total = sys.total_memory();
                     m.mem_usage = if total > 0 {
                         (sys.used_memory() as f64 / total as f64 * 100.0) as f32
@@ -206,7 +190,6 @@ impl SystemPanel {
                         0.0
                     };
 
-                    // Disk
                     let (used, total) = disks.list().iter().fold(
                         (0u64, 0u64),
                         |(u, t), d| {
@@ -222,7 +205,6 @@ impl SystemPanel {
                         0.0
                     };
 
-                    // Network
                     let net: u64 = networks
                         .iter()
                         .map(|(_, n)| n.received() + n.transmitted())
@@ -231,7 +213,6 @@ impl SystemPanel {
                     m.net_usage = (net as f64 / 10_000_000.0 * 100.0)
                         .min(100.0) as f32;
 
-                    // GPU (cached)
                     let gpus = gpu_manager.get_gpu_usage_cached();
                     m.gpu_usage = gpus[0];
                     m.gpu1_usage = gpus[1];
@@ -250,7 +231,6 @@ impl SystemPanel {
 // ─────────────────────────────────────────────
 
 
-/// Creates a vertical bar visualization for a metric
 #[inline]
 fn vertical_bar<'a>(
     label: &'a str,
@@ -269,13 +249,11 @@ fn vertical_bar<'a>(
 
     let bar_height_ratio = (value / 100.0).clamp(0.0, 1.0);
 
-    // Calculate layout portions (Total = 1000)
     let filled_portion = (bar_height_ratio * 1000.0).round() as u16;
     let empty_portion = 1000u16.saturating_sub(filled_portion);
 
     let bar_visual = container(
         column![
-            // Empty portion (top)
             container(Space::new())
                 .width(Length::Fixed(BAR_WIDTH))
                 .height(if empty_portion > 0 {
@@ -287,7 +265,6 @@ fn vertical_bar<'a>(
                     background: Some(theme.color11.into()),
                     ..Default::default()
                 }),
-            // Filled portion (bottom)
             container(Space::new())
                 .width(Length::Fixed(BAR_WIDTH))
                 .height(if filled_portion > 0 {
@@ -333,7 +310,6 @@ pub fn system_panel_view<'a>(
 ) -> Element<'a, Message> {
     let metrics_guard = system_panel.metrics.lock().unwrap();
 
-    // ✅ Handle None case (system still initializing)
     if metrics_guard.is_none() {
         drop(metrics_guard);
 

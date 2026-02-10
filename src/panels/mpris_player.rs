@@ -6,13 +6,12 @@ pub struct MusicPlayerState {
     pub app_name: String,
     pub song_name: String,
     pub artist_name: String,
-    pub current_time: f32,      // in seconds
-    pub total_time: f32,        // in seconds
+    pub current_time: f32,
+    pub total_time: f32,
     pub is_playing: bool,
     pub player_available: bool,
 }
 
-// Separate internal state that doesn't need to be cloned
 pub struct MusicPlayerInternal {
     player: Option<Player>,
     last_check: std::time::Instant,
@@ -63,7 +62,6 @@ impl MusicPlayer {
     fn find_active_player() -> Option<Player> {
         let finder = PlayerFinder::new().ok()?;
 
-        // Try to find an active player (playing or paused)
         for player in finder.find_all().ok()? {
             if let Ok(status) = player.get_playback_status() {
                 if status == PlaybackStatus::Playing || status == PlaybackStatus::Paused {

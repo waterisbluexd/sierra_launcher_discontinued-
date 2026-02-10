@@ -24,7 +24,7 @@ impl Default for ServiceStatus {
             wifi_name: "Checking...".to_string(),
             bluetooth_enabled: false,
             bluetooth_name: "Checking...".to_string(),
-            last_update: Instant::now() - Duration::from_secs(10), // Force initial update
+            last_update: Instant::now() - Duration::from_secs(10),
         }
     }
 }
@@ -39,7 +39,6 @@ pub struct ServicesPanel {
     pub is_airplane_mode_on: bool,
     pub eye_care_enabled: bool,
     
-    // Cache status with Arc<Mutex> for thread-safe access
     status_cache: Arc<Mutex<ServiceStatus>>,
     refresh_requested: Arc<Mutex<bool>>,
     last_volume_update: Instant,
@@ -55,13 +54,11 @@ impl ServicesPanel {
         let status_cache = Arc::new(Mutex::new(ServiceStatus::default()));
         let refresh_requested = Arc::new(Mutex::new(true));
         
-        // Start background thread for status updates
         let cache_clone = Arc::clone(&status_cache);
         let refresh_clone = Arc::clone(&refresh_requested);
         
         std::thread::spawn(move || {
             loop {
-                // Check if refresh is requested
                 let should_refresh = {
                     let mut requested = refresh_clone.lock().unwrap();
                     if *requested {
@@ -73,11 +70,9 @@ impl ServicesPanel {
                 };
                 
                 if should_refresh {
-                    // Fetch status in background thread (non-blocking)
                     let (wifi_enabled, wifi_name) = system_services::fetch_wifi_status();
                     let (bt_enabled, bt_name) = system_services::fetch_bluetooth_status();
                     
-                    // Update cache
                     if let Ok(mut status) = cache_clone.lock() {
                         status.wifi_enabled = wifi_enabled;
                         status.wifi_name = wifi_name;
@@ -87,7 +82,6 @@ impl ServicesPanel {
                     }
                 }
                 
-                // Sleep to prevent busy-waiting
                 std::thread::sleep(Duration::from_millis(200));
             }
         });
@@ -115,14 +109,12 @@ impl ServicesPanel {
     }
 
     pub fn toggle_wifi(&mut self) {
-        // Get current state from cache
         let is_enabling = !self.wifi_enabled();
         
         std::thread::spawn(move || {
             system_services::toggle_wifi_cmd(is_enabling);
         });
         
-        // Update cache immediately for responsiveness
         if let Ok(mut status) = self.status_cache.lock() {
             status.wifi_enabled = is_enabling;
             if !is_enabling {
@@ -130,7 +122,6 @@ impl ServicesPanel {
             }
         }
         
-        // Schedule refresh after a delay
         let refresh_clone = Arc::clone(&self.refresh_requested);
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(1000));
@@ -141,14 +132,12 @@ impl ServicesPanel {
     }
 
     pub fn toggle_bluetooth(&mut self) {
-        // Get current state from cache
         let is_enabling = !self.bluetooth_enabled();
         
         std::thread::spawn(move || {
             system_services::toggle_bluetooth_cmd(is_enabling);
         });
         
-        // Update cache immediately for responsiveness
         if let Ok(mut status) = self.status_cache.lock() {
             status.bluetooth_enabled = is_enabling;
             if !is_enabling {
@@ -156,7 +145,6 @@ impl ServicesPanel {
             }
         }
         
-        // Schedule refresh after a delay
         let refresh_clone = Arc::clone(&self.refresh_requested);
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(1000));
@@ -204,13 +192,11 @@ impl ServicesPanel {
         font_size: f32,
     ) -> Element<'a, Message> {
         
-        // Get cached values (non-blocking)
         let wifi_enabled = self.wifi_enabled();
         let wifi_name = self.wifi_name();
         let bt_enabled = self.bluetooth_enabled();
         let bt_name = self.bluetooth_name();
         
-        // --- 1. DETERMINE WIFI STYLING COLORS ---
         let is_connected = wifi_enabled && wifi_name != "No Network" && wifi_name != "WiFi Off";
         
         let active_accent = if is_connected { theme.color2 } else { theme.color3 };
@@ -224,7 +210,6 @@ impl ServicesPanel {
 
         let wifi_icon_str = if wifi_enabled { "󰤨" } else { "󰤮" };
 
-        // --- BLUETOOTH STYLING COLORS ---
         let is_bt_connected = bt_enabled && bt_name != "No Device" && bt_name != "Bluetooth Off";
         
 
@@ -236,7 +221,7 @@ impl ServicesPanel {
 
         let bt_icon_str = if bt_enabled { "" } else { "󰂲" };
 
-        // --- 2. BUILD THE WIFI BUTTON CONTENT ---
+
         let wifi_button_content = container(
             row![
                 container(
@@ -272,7 +257,6 @@ impl ServicesPanel {
         .padding(iced::padding::left(15).right(5))
         .align_y(iced::alignment::Vertical::Center);
 
-        // --- BLUETOOTH BUTTON CONTENT ---
         let bt_button_content = container(
             row![
                 container(
@@ -307,7 +291,6 @@ impl ServicesPanel {
         .height(Length::Fill)
         .padding(iced::padding::left(15).right(5))
         .align_y(iced::alignment::Vertical::Center);
-        // --- Determine Airplane Mode Styling Colors ---
         let airplane_active_color = theme.color2;
         let airplane_inactive_color = theme.color8;
 
@@ -317,7 +300,6 @@ impl ServicesPanel {
             (airplane_inactive_color, Color::TRANSPARENT, airplane_inactive_color)
         };
 
-        // --- Eye Care Styling Colors ---
         let eye_care_active_color = theme.color2;
         let eye_care_inactive_color = theme.color8;
 
@@ -327,10 +309,8 @@ impl ServicesPanel {
             (eye_care_inactive_color, Color::TRANSPARENT, eye_care_inactive_color)
         };
 
-        // --- 3. ASSEMBLE LEFT PANEL ---
         let left_part = container(
             column![
-                // Top Row: WiFi + Airplane
                 container(
                     row![
                         container(
@@ -396,7 +376,6 @@ impl ServicesPanel {
                         .width(Length::Fill)
                         .height(Length::Fill),
 
-                        // Airplane Button
                         container(
                             button(
                                 container(
@@ -458,7 +437,6 @@ impl ServicesPanel {
                 .width(Length::Fill)
                 .height(Length::Fixed(45.0)),
 
-                // Middle Row: Bluetooth + Eye Care + Settings
                 container(
                     row![
                         container(
@@ -523,7 +501,6 @@ impl ServicesPanel {
                         .width(Length::Fill)
                         .height(Length::Fill),
 
-                        // Eye Care Button
                         container(
                             button(
                                 container(
@@ -581,7 +558,6 @@ impl ServicesPanel {
                         .width(Length::Fixed(45.0))
                         .height(Length::Fill),
 
-                        // Settings Button (placeholder)
                         container(
                             button(
                                 container(
@@ -631,7 +607,6 @@ impl ServicesPanel {
                 )
                 .width(Length::Fill)
                 .height(Length::Fixed(45.0)),
-                // Bottom Row
                 services_bottom_row::view_bottom_row(theme, font, font_size),
             ]
             .spacing(10)
@@ -640,7 +615,6 @@ impl ServicesPanel {
         .width(Length::Fill)
         .height(Length::Fill);
 
-        // --- RIGHT PANEL (Sliders) ---
         let volume_icon = if self.is_muted || self.volume_value == 0.0 { "" } else if self.volume_value <= 30.0 { "" } else if self.volume_value <= 60.0 { "" }  else { "" };
         let brightness_icon = if self.brightness_value <= 33.0 { "󰃞" } else if self.brightness_value <= 66.0 { "󰃟" } else { "󰃠" };
 
@@ -754,7 +728,6 @@ impl ServicesPanel {
         .spacing(5)
         .align_x(iced::alignment::Horizontal::Center);
 
-        // --- FINAL ASSEMBLY ---
         let sliders_row = row![volume_column, brightness_column]
             .spacing(20)
             .padding(iced::padding::right(1))
@@ -826,7 +799,6 @@ impl ServicesPanel {
         
         if self.last_volume_update.elapsed() >= Duration::from_millis(100) {
             self.last_volume_update = Instant::now();
-            // Spawn async to avoid blocking
             let vol = self.volume_value as u8;
             std::thread::spawn(move || {
                 system_services::set_volume_cmd(vol);
@@ -842,7 +814,6 @@ impl ServicesPanel {
         
         if self.last_brightness_update.elapsed() >= Duration::from_millis(100) {
             self.last_brightness_update = Instant::now();
-            // Spawn async to avoid blocking
             let bright = self.brightness_value as u8;
             std::thread::spawn(move || {
                 system_services::set_brightness_cmd(bright);
