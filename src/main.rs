@@ -2,6 +2,7 @@ mod utils;
 mod config;
 mod panels;
 mod app;
+mod ipc;
 
 use app::state::{Launcher, Panel};
 use app::message::Message;
@@ -23,6 +24,19 @@ use std::time::Instant;
 use std::thread;
 
 fn main() -> Result<(), iced_layershell::Error> {
+    // ── DAEMON CHECK ──────────────────────────────────────
+    // If another instance is running, tell it to show and exit immediately
+    if ipc::try_send_to_daemon() {
+        eprintln!("[IPC] Sent show to existing daemon, exiting client");
+        return Ok(());
+    }
+    eprintln!("[IPC] No daemon found, becoming daemon...");
+    // Start IPC listener for future client connections
+    ipc::start_listener(|| {
+        eprintln!("[IPC] Client requested show");
+    });
+    // ──────────────────────────────────────────────────────
+
     let start = Instant::now();
     
     application(new, namespace, update, view)
@@ -44,6 +58,7 @@ fn main() -> Result<(), iced_layershell::Error> {
         .run()?;
     
     utils::data::save_on_shutdown();
+    ipc::cleanup();
     eprintln!("[Main] Total runtime: {:?}", start.elapsed());
     Ok(())
 }

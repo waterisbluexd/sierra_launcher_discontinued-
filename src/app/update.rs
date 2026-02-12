@@ -21,8 +21,6 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                         keyboard::Key::Named(Named::Escape) => {
                             std::process::exit(0);
                         }
-                        
-                        keyboard::Key::Named(Named::Enter) => {
                             if launcher.clipboard_visible {
                                 return Command::perform(async {}, |_| Message::ClipboardSelect);
                             } else {
@@ -402,5 +400,13 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         }
 
         Message::NoOp => Command::none(),
+        
+        Message::ShowWindow => {
+            // Reset search bar and refocus
+            launcher.search_bar.input_value.clear();
+            let _ = launcher.app_list.update(app_list::Message::SearchInput(String::new()));
+            launcher.clipboard_selected_index = 0;
+            return focus(launcher.search_bar.input_id.clone());
+        }
     }
 }

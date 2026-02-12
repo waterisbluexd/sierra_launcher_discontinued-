@@ -35,6 +35,7 @@ pub enum Message {
     NextWallpaper,
     NoOp,
     SetWallpaper(usize),
+    ShowWindow,
 }
 
 impl TryInto<LayershellCustomActionWithId> for Message {

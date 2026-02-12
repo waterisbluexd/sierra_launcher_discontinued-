@@ -70,3 +70,4 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 [dependencies.gio]
 version = "0.20"
 features = ["v2_66"]
+libc = "0.2.181"
