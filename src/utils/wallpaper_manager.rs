@@ -134,12 +134,16 @@ impl WallpaperManager {
         };
 
         if wal_path.exists() {
-            eprintln!("[Pywal] Updating colors from: {:?}", wal_path);
-            let _ = Command::new("wal")
-                .arg("-i")
-                .arg(wal_path)
-                .arg("-n")
-                .output();
+            let wp = wal_path.clone();
+            eprintln!("[Pywal] Queued color update from: {:?}", wp);
+            // Run pywal in background to avoid blocking UI
+            std::thread::spawn(move || {
+                let _ = Command::new("wal")
+                    .arg("-i")
+                    .arg(&wp)
+                    .arg("-n")
+                    .output();
+            });
         } else {
             eprintln!("[Pywal] Could not find path for wal: {:?}", wal_path);
         }
@@ -290,12 +294,16 @@ impl WallpaperManager {
         };
 
         if wal_path.exists() {
-            eprintln!("[Pywal] Updating colors from: {:?}", wal_path);
-            let _ = Command::new("wal")
-                .arg("-i")
-                .arg(wal_path)
-                .arg("-n")
-                .output();
+            let wp = wal_path.clone();
+            eprintln!("[Pywal] Queued color update from: {:?}", wp);
+            // Run pywal in background to avoid blocking UI
+            std::thread::spawn(move || {
+                let _ = Command::new("wal")
+                    .arg("-i")
+                    .arg(&wp)
+                    .arg("-n")
+                    .output();
+            });
         } else {
             eprintln!("[Pywal] Could not find path for wal: {:?}", wal_path);
         }

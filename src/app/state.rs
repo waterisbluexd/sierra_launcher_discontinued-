@@ -36,6 +36,7 @@ pub struct Launcher {
     pub services_panel: ServicesPanel,
     pub last_color_check: Instant,
     pub last_services_refresh: Instant,
+    pub last_pywal_reload: Instant,
     pub frame_count: u32,
     pub title_animator: TitleAnimator,
     pub control_center_visible: bool,

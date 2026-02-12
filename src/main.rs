@@ -70,25 +70,18 @@ fn new() -> (Launcher, Command<Message>) {
         loop { std::thread::park(); }
     });
 
-    // 3. Wallpaper restoration (background - immediate)
+    // Wallpaper restoration and indexing (background - non-blocking)
     if let Some(ref wallpaper_dir) = config.wallpaper_dir {
         let wp_dir = wallpaper_dir.clone();
         thread::spawn(move || {
             let t = Instant::now();
             let manager = WallpaperManager::new(wp_dir);
+            
+            // Restore last wallpaper
             manager.restore_last_wallpaper();
             eprintln!("[Background] Wallpaper restored: {:?}", t.elapsed());
-        });
-    }
-
-    let wallpaper_dir_clone = config.wallpaper_dir.clone();
-    
-    if let Some(wp_dir) = wallpaper_dir_clone {
-        thread::spawn(move || {
-            let t = Instant::now();
-            let manager = WallpaperManager::new(wp_dir.clone());
             
-            // Load or generate index
+            // Load or generate index (only if needed)
             if manager.load_index().is_none() {
                 eprintln!("[Background] Generating wallpaper cache...");
                 manager.ensure_cache();
@@ -123,6 +116,7 @@ fn new() -> (Launcher, Command<Message>) {
             services_panel,
             last_color_check: Instant::now(),
             last_services_refresh: Instant::now(),
+            last_pywal_reload: Instant::now(),
             frame_count: 0,
             title_animator,
             control_center_visible: false,

@@ -41,22 +41,27 @@ pub struct ServicesPanel {
     
     status_cache: Arc<Mutex<ServiceStatus>>,
     refresh_requested: Arc<Mutex<bool>>,
+    values_cache: Arc<Mutex<(f32, f32, bool)>>, // (volume, brightness, muted)
     last_volume_update: Instant,
     last_brightness_update: Instant,
 }
 
 impl ServicesPanel {
     pub fn new() -> Self {
-        let volume_value = system_services::get_volume().unwrap_or(50.0);
-        let brightness_value = system_services::get_brightness().unwrap_or(50.0);
-        let is_muted = system_services::get_mute_state();
+        // Use default values immediately - don't block on system calls!
+        let volume_value = 50.0;
+        let brightness_value = 50.0;
+        let is_muted = false;
         
         let status_cache = Arc::new(Mutex::new(ServiceStatus::default()));
         let refresh_requested = Arc::new(Mutex::new(true));
+        let values_cache = Arc::new(Mutex::new((volume_value, brightness_value, is_muted)));
         
         let cache_clone = Arc::clone(&status_cache);
         let refresh_clone = Arc::clone(&refresh_requested);
+        let values_clone = Arc::clone(&values_cache);
         
+        // Background thread for status AND system values
         std::thread::spawn(move || {
             loop {
                 let should_refresh = {
@@ -69,6 +74,7 @@ impl ServicesPanel {
                     }
                 };
                 
+                // Fetch wifi/bluetooth status
                 if should_refresh {
                     let (wifi_enabled, wifi_name) = system_services::fetch_wifi_status();
                     let (bt_enabled, bt_name) = system_services::fetch_bluetooth_status();
@@ -82,7 +88,36 @@ impl ServicesPanel {
                     }
                 }
                 
-                std::thread::sleep(Duration::from_millis(200));
+                // Also fetch system values periodically (volume, brightness)
+                let volume = system_services::get_volume().unwrap_or(50.0);
+                let brightness = system_services::get_brightness().unwrap_or(50.0);
+                let muted = system_services::get_mute_state();
+                
+                if let Ok(mut values) = values_clone.lock() {
+                    *values = (volume, brightness, muted);
+                }
+                
+                std::thread::sleep(Duration::from_millis(500));
+            }
+        });
+
+        // Secondary background thread just for initial fast fetch of values
+        let values_clone2 = Arc::clone(&values_cache);
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(100)); // Small delay
+            if let Some(volume) = system_services::get_volume() {
+                if let Ok(mut values) = values_clone2.lock() {
+                    values.0 = volume;
+                }
+            }
+            if let Some(brightness) = system_services::get_brightness() {
+                if let Ok(mut values) = values_clone2.lock() {
+                    values.1 = brightness;
+                }
+            }
+            let muted = system_services::get_mute_state();
+            if let Ok(mut values) = values_clone2.lock() {
+                values.2 = muted;
             }
         });
 
@@ -97,8 +132,34 @@ impl ServicesPanel {
             eye_care_enabled: false,
             status_cache,
             refresh_requested,
+            values_cache,
             last_volume_update: Instant::now(),
             last_brightness_update: Instant::now(),
+        }
+    }
+
+    #[allow(dead_code)]
+    /// Get cached volume value (non-blocking)
+    pub fn get_volume(&self) -> f32 {
+        self.values_cache.lock().unwrap().0
+    }
+
+    #[allow(dead_code)]
+    /// Get cached brightness value (non-blocking)
+    pub fn get_brightness(&self) -> f32 {
+        self.values_cache.lock().unwrap().1
+    }
+
+    /// Get cached mute state (non-blocking)
+    pub fn get_is_muted(&self) -> bool {
+        self.values_cache.lock().unwrap().2
+    }
+
+    /// Set mute state (updates cache immediately)
+    pub fn set_muted(&mut self, muted: bool) {
+        self.is_muted = muted;
+        if let Ok(mut values) = self.values_cache.lock() {
+            values.2 = muted;
         }
     }
 
@@ -615,7 +676,7 @@ impl ServicesPanel {
         .width(Length::Fill)
         .height(Length::Fill);
 
-        let volume_icon = if self.is_muted || self.volume_value == 0.0 { "" } else if self.volume_value <= 30.0 { "" } else if self.volume_value <= 60.0 { "" }  else { "" };
+        let volume_icon = if self.get_is_muted() || self.volume_value == 0.0 { "" } else if self.volume_value <= 30.0 { "" } else if self.volume_value <= 60.0 { "" }  else { "" };
         let brightness_icon = if self.brightness_value <= 33.0 { "󰃞" } else if self.brightness_value <= 66.0 { "󰃟" } else { "󰃠" };
 
         let volume_column = column![
@@ -794,7 +855,7 @@ impl ServicesPanel {
     pub fn set_volume(&mut self, value: f32) {
         self.volume_value = value.clamp(0.0, 100.0);
         if self.volume_value > 0.0 {
-            self.is_muted = false;
+            self.set_muted(false);
         }
         
         if self.last_volume_update.elapsed() >= Duration::from_millis(100) {
@@ -822,8 +883,8 @@ impl ServicesPanel {
     }
 
     pub fn toggle_mute(&mut self) {
-        self.is_muted = !self.is_muted;
-        let is_muted = self.is_muted;
+        self.set_muted(!self.get_is_muted());
+        let is_muted = self.get_is_muted();
         
         std::thread::spawn(move || {
             system_services::set_mute_cmd(is_muted);

@@ -138,10 +138,14 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 launcher.last_color_check = now;
                 if launcher.config.use_pywal {
                     if let Some(ref watcher) = launcher.watcher {
-                        if watcher.check_for_changes() {
-                            if let Ok(wal_colors) = WalColors::load() {
-                                launcher.theme = wal_colors.to_theme();
-                                eprintln!("Pywal theme reloaded");
+                        // Debounce: skip if we reloaded less than 1 second ago
+                        if now.duration_since(launcher.last_pywal_reload) > Duration::from_secs(1) {
+                            if watcher.check_for_changes() {
+                                if let Ok(wal_colors) = WalColors::load() {
+                                    launcher.theme = wal_colors.to_theme();
+                                    launcher.last_pywal_reload = now;
+                                    eprintln!("[Pywal] Theme reloaded");
+                                }
                             }
                         }
                     }

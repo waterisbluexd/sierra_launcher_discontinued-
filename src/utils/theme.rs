@@ -116,25 +116,26 @@ impl WalColors {
 
 impl Theme {
     /// Load theme based on config preferences
+    /// Priority: pywal (if enabled) > custom theme > default
     pub fn load_from_config(config: &Config) -> Self {
+        // If pywal is enabled, try to load it FIRST
         if config.use_pywal {
-            // Try to load pywal theme
             if let Ok(wal_colors) = WalColors::load() {
-                eprintln!("Using pywal theme");
+                eprintln!("[Theme] Using pywal theme");
                 return wal_colors.to_theme();
             } else {
-                eprintln!("Pywal enabled but colors.json not found, falling back to custom/default theme");
+                eprintln!("[Theme] Pywal enabled but colors.json not found");
             }
         }
         
         // Use custom theme from config if available
         if let Some(ref theme_config) = config.custom_theme {
-            eprintln!("Using custom theme from config");
+            eprintln!("[Theme] Using custom theme from config");
             return Self::from_config_theme(theme_config);
         }
         
         // Fallback to default theme
-        eprintln!("Using default theme");
+        eprintln!("[Theme] Using default theme");
         Self::default()
     }
     
