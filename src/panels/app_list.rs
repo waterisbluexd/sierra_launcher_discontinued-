@@ -46,8 +46,6 @@ pub struct AppList {
 }
 
 impl AppList {
-    /// Create new AppList - DOES NOT load apps yet!
-    /// Apps will be loaded asynchronously after window appears
     pub fn new() -> Self {
         // Initialize loading state tracker
         LOADING_STATE.get_or_init(|| Arc::new(Mutex::new(LoadingState::NotStarted)));

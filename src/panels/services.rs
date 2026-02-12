@@ -48,10 +48,10 @@ pub struct ServicesPanel {
 
 impl ServicesPanel {
     pub fn new() -> Self {
-        // Use default values immediately - don't block on system calls!
-        let volume_value = 50.0;
-        let brightness_value = 50.0;
-        let is_muted = false;
+        // Fetch actual values from system - these should be fast
+        let volume_value = system_services::get_volume().unwrap_or(50.0);
+        let brightness_value = system_services::get_brightness().unwrap_or(50.0);
+        let is_muted = system_services::get_mute_state();
         
         let status_cache = Arc::new(Mutex::new(ServiceStatus::default()));
         let refresh_requested = Arc::new(Mutex::new(true));
@@ -59,9 +59,8 @@ impl ServicesPanel {
         
         let cache_clone = Arc::clone(&status_cache);
         let refresh_clone = Arc::clone(&refresh_requested);
-        let values_clone = Arc::clone(&values_cache);
         
-        // Background thread for status AND system values
+        // Background thread for status updates
         std::thread::spawn(move || {
             loop {
                 let should_refresh = {
@@ -88,36 +87,7 @@ impl ServicesPanel {
                     }
                 }
                 
-                // Also fetch system values periodically (volume, brightness)
-                let volume = system_services::get_volume().unwrap_or(50.0);
-                let brightness = system_services::get_brightness().unwrap_or(50.0);
-                let muted = system_services::get_mute_state();
-                
-                if let Ok(mut values) = values_clone.lock() {
-                    *values = (volume, brightness, muted);
-                }
-                
                 std::thread::sleep(Duration::from_millis(500));
-            }
-        });
-
-        // Secondary background thread just for initial fast fetch of values
-        let values_clone2 = Arc::clone(&values_cache);
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(100)); // Small delay
-            if let Some(volume) = system_services::get_volume() {
-                if let Ok(mut values) = values_clone2.lock() {
-                    values.0 = volume;
-                }
-            }
-            if let Some(brightness) = system_services::get_brightness() {
-                if let Ok(mut values) = values_clone2.lock() {
-                    values.1 = brightness;
-                }
-            }
-            let muted = system_services::get_mute_state();
-            if let Ok(mut values) = values_clone2.lock() {
-                values.2 = muted;
             }
         });
 

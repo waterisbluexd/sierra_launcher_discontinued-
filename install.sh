@@ -1,96 +1,184 @@
 #!/bin/bash
 set -e
 
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# ─────────────────────────────────────────────
+#   Color Palette
+# ─────────────────────────────────────────────
+RESET='\033[0m'
+BOLD='\033[1m'
+DIM='\033[2m'
 
-echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║  Sierra Launcher (Wayland Only) v2.0  ║${NC}"
-echo -e "${BLUE}║     Optimized for Fast Startup         ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+WHITE='\033[97m'
+GRAY='\033[90m'
+CYAN='\033[96m'
+GREEN='\033[92m'
+YELLOW='\033[93m'
+RED='\033[91m'
+BLUE='\033[94m'
+
+# ─────────────────────────────────────────────
+#   Helpers
+# ─────────────────────────────────────────────
+header() {
+    echo ""
+    echo -e "  ${BOLD}${CYAN}$1${RESET}"
+    echo -e "  ${GRAY}$(printf '%.0s─' $(seq 1 40))${RESET}"
+}
+
+step() {
+    echo -e "  ${GRAY}·${RESET}  $1"
+}
+
+ok() {
+    echo -e "  ${GREEN}✓${RESET}  $1"
+}
+
+warn() {
+    echo -e "  ${YELLOW}⚠${RESET}  $1"
+}
+
+fail() {
+    echo -e "  ${RED}✗${RESET}  $1"
+}
+
+info() {
+    echo -e "      ${DIM}${GRAY}$1${RESET}"
+}
+
+# ─────────────────────────────────────────────
+#   Banner
+# ─────────────────────────────────────────────
+clear
+echo ""
+echo -e "  ${BOLD}${WHITE}Sierra Launcher${RESET}  ${DIM}${GRAY}v2.0 · Wayland only${RESET}"
 echo ""
 
+
+# ─────────────────────────────────────────────
+#   Wayland Check
+# ─────────────────────────────────────────────
+header "Environment"
+
 if [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_SESSION_TYPE" != "wayland" ]; then
-    echo -e "${RED}ERROR: Sierra Launcher requires Wayland${NC}"
-    echo "Current session: ${XDG_SESSION_TYPE:-unknown}"
+    fail "Wayland session not detected"
+    info "Current session: ${XDG_SESSION_TYPE:-unknown}"
+    info "Sierra requires a Wayland compositor (e.g. Hyprland, Sway, GNOME on Wayland)"
+    echo ""
     exit 1
+else
+    ok "Wayland session detected  ${DIM}${GRAY}($XDG_SESSION_TYPE)${RESET}"
 fi
 
-echo -e "${YELLOW}Installing dependencies...${NC}"
+
+# ─────────────────────────────────────────────
+#   Dependencies
+# ─────────────────────────────────────────────
+header "Dependencies"
 
 if command -v pacman &>/dev/null; then
+    step "Installing packages via pacman..."
     sudo pacman -S --needed \
         rust cargo gcc pkg-config gtk3 \
         brightnessctl pulseaudio redshift ffmpeg \
-        lm_sensors jq
-    
+        lm_sensors jq \
+        2>&1 | grep -E "installing|upgrading|up to date" | while read -r line; do
+            info "$line"
+        done
+    ok "Core packages installed"
+
     if ! command -v gslapper &>/dev/null; then
-        echo -e "${YELLOW}gSlapper not found, installing from AUR...${NC}"
+        step "gSlapper not found — checking AUR helpers..."
         if command -v yay &>/dev/null; then
-            yay -S --needed gslapper
+            yay -S --needed gslapper && ok "gSlapper installed via yay"
         elif command -v paru &>/dev/null; then
-            paru -S --needed gslapper
+            paru -S --needed gslapper && ok "gSlapper installed via paru"
         else
-            echo -e "${YELLOW}No AUR helper found (yay/paru)${NC}"
-            echo -e "${YELLOW}Install gSlapper manually:${NC}"
-            echo "  yay -S gslapper"
-            echo "  OR from: https://gitlab.com/phoneybadger/gslapper"
+            warn "No AUR helper found"
+            info "Install gSlapper manually:"
+            info "  yay -S gslapper"
+            info "  https://gitlab.com/phoneybadger/gslapper"
         fi
+    else
+        ok "gSlapper already installed"
     fi
 
 elif command -v apt &>/dev/null; then
-    sudo apt update
+    step "Installing packages via apt..."
+    sudo apt update -qq
     sudo apt install -y \
         build-essential cargo pkg-config libgtk-3-dev \
         brightnessctl pulseaudio redshift ffmpeg \
-        lm-sensors jq
+        lm-sensors jq &>/dev/null
+    ok "Core packages installed"
 
     if ! command -v gslapper &>/dev/null; then
-        echo -e "${YELLOW}gSlapper not found in apt, install manually from:${NC}"
-        echo "https://gitlab.com/phoneybadger/gslapper"
+        warn "gSlapper not in apt repositories"
+        info "Install manually: https://gitlab.com/phoneybadger/gslapper"
+    else
+        ok "gSlapper already installed"
     fi
 
 elif command -v dnf &>/dev/null; then
+    step "Installing packages via dnf..."
     sudo dnf install -y \
         rust cargo gcc pkg-config gtk3-devel \
         brightnessctl pulseaudio redshift ffmpeg \
-        lm_sensors jq
+        lm_sensors jq &>/dev/null
+    ok "Core packages installed"
 
     if ! command -v gslapper &>/dev/null; then
-        echo -e "${YELLOW}gSlapper not found in dnf, install manually from:${NC}"
-        echo "https://gitlab.com/phoneybadger/gslapper"
+        warn "gSlapper not in dnf repositories"
+        info "Install manually: https://gitlab.com/phoneybadger/gslapper"
+    else
+        ok "gSlapper already installed"
     fi
 
 else
-    echo -e "${RED}ERROR: Unsupported package manager${NC}"
-    echo "Please install manually:"
-    echo "  rust, cargo, gtk3-dev, pkg-config, brightnessctl, pulseaudio"
-    echo "  redshift, ffmpeg, gslapper, lm_sensors, jq"
+    fail "No supported package manager found"
+    info "Please install these manually:"
+    info "  rust  cargo  gtk3-dev  pkg-config  brightnessctl"
+    info "  pulseaudio  redshift  ffmpeg  gslapper  lm_sensors  jq"
+    echo ""
     exit 1
 fi
 
+
+# ─────────────────────────────────────────────
+#   Build
+# ─────────────────────────────────────────────
+header "Build"
+
+step "Compiling Sierra Launcher in release mode..."
+info "This may take a few minutes on first build"
 echo ""
-echo -e "${YELLOW}Building Sierra Launcher (release)...${NC}"
-echo -e "${BLUE}This may take a few minutes on first build...${NC}"
-cargo build --release
 
-echo -e "${YELLOW}Installing binary...${NC}"
+cargo build --release 2>&1 | grep -E "^   Compiling|^    Finished|^error" | while read -r line; do
+    case "$line" in
+        *Compiling*)  info "  ${line}" ;;
+        *Finished*)   echo -e "  ${GREEN}✓${RESET}  ${DIM}${line}${RESET}" ;;
+        *error*)      echo -e "  ${RED}✗${RESET}  ${line}" ;;
+    esac
+done
+
+ok "Build complete"
+
+step "Installing binary to /usr/local/bin/sierra-launcher"
 sudo install -Dm755 target/release/sierra_launcher /usr/local/bin/sierra-launcher
+ok "Binary installed"
 
-echo -e "${YELLOW}Installing wallpaper restoration service...${NC}"
 
-# Create restore script
+# ─────────────────────────────────────────────
+#   Wallpaper Service
+# ─────────────────────────────────────────────
+header "Wallpaper Restoration Service"
+
+step "Writing restore script..."
 sudo tee /usr/local/bin/restore-wallpaper.sh > /dev/null << 'EOF'
 #!/bin/bash
-# Restore wallpaper from Sierra launcher cache on login
 set -e
 
 CACHE_FILE="$HOME/.cache/sierra/wallpapers/last_wallpaper.json"
 
-# Wait for compositor to be ready
 sleep 0.5
 
 if [ ! -f "$CACHE_FILE" ]; then
@@ -98,7 +186,6 @@ if [ ! -f "$CACHE_FILE" ]; then
     exit 0
 fi
 
-# Extract wallpaper path from JSON
 if command -v jq &>/dev/null; then
     WALLPAPER=$(jq -r '.last_wallpaper' "$CACHE_FILE")
 else
@@ -110,11 +197,9 @@ if [ -z "$WALLPAPER" ] || [ ! -f "$WALLPAPER" ]; then
     exit 0
 fi
 
-# Kill existing gSlapper
 pkill -9 gslapper 2>/dev/null || true
 sleep 0.1
 
-# Determine type and restore
 EXT="${WALLPAPER##*.}"
 case "${EXT,,}" in
     mp4|mkv|webm|avi)
@@ -127,11 +212,11 @@ esac
 
 echo "[Wallpaper] ✓ Restored: $WALLPAPER"
 EOF
-
 sudo chmod +x /usr/local/bin/restore-wallpaper.sh
+ok "Restore script written"
 
+step "Creating systemd user service..."
 mkdir -p "$HOME/.config/systemd/user"
-
 cat > "$HOME/.config/systemd/user/restore-wallpaper.service" << 'EOF'
 [Unit]
 Description=Restore Sierra Launcher Wallpaper
@@ -148,21 +233,23 @@ EOF
 
 systemctl --user daemon-reload
 systemctl --user enable restore-wallpaper.service
+ok "Service enabled  ${DIM}${GRAY}(restore-wallpaper.service)${RESET}"
 
-echo -e "${GREEN}✓ Wallpaper restoration service installed${NC}"
+
+# ─────────────────────────────────────────────
+#   Config
+# ─────────────────────────────────────────────
+header "Configuration"
 
 CONFIG_DIR="$HOME/.config/sierra"
 CACHE_DIR="$HOME/.cache/sierra"
 CONFIG_FILE="$CONFIG_DIR/Sierra"
-
-mkdir -p "$CONFIG_DIR"
-mkdir -p "$CACHE_DIR"
-
 DEFAULT_WALLPAPER_DIR="$HOME/Pictures/Wallpapers"
-mkdir -p "$DEFAULT_WALLPAPER_DIR"
+
+mkdir -p "$CONFIG_DIR" "$CACHE_DIR" "$DEFAULT_WALLPAPER_DIR"
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo -e "${YELLOW}Creating default config...${NC}"
+    step "Writing default config..."
 
     cat > "$CONFIG_FILE" << EOF
 font = "Monospace"
@@ -199,17 +286,20 @@ color13 = "#bb9af7"
 color14 = "#7dcfff"
 color15 = "#c0caf5"
 EOF
-
-    echo -e "${GREEN}✓ Config created at $CONFIG_FILE${NC}"
+    ok "Config created"
+    info "$CONFIG_FILE"
 else
-    echo -e "${GREEN}✓ Config already exists at $CONFIG_FILE${NC}"
+    ok "Config already exists — skipping"
+    info "$CONFIG_FILE"
 fi
-echo ""
-echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║        Running Performance Test        ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 
-echo -e "${YELLOW}Testing startup time...${NC}"
+
+# ─────────────────────────────────────────────
+#   Startup Benchmark
+# ─────────────────────────────────────────────
+header "Performance Check"
+
+step "Measuring startup time..."
 START_TIME=$(date +%s%3N)
 timeout 5 sierra-launcher &>/dev/null &
 LAUNCHER_PID=$!
@@ -219,19 +309,28 @@ END_TIME=$(date +%s%3N)
 STARTUP_MS=$((END_TIME - START_TIME))
 
 if [ $STARTUP_MS -lt 500 ]; then
-    echo -e "${GREEN}✓ Excellent startup time: ${STARTUP_MS}ms${NC}"
+    ok "Startup time: ${BOLD}${STARTUP_MS}ms${RESET}  ${DIM}${GREEN}excellent${RESET}"
 elif [ $STARTUP_MS -lt 800 ]; then
-    echo -e "${YELLOW}⚠ Good startup time: ${STARTUP_MS}ms${NC}"
+    warn "Startup time: ${BOLD}${STARTUP_MS}ms${RESET}  ${DIM}${YELLOW}acceptable${RESET}"
 else
-    echo -e "${RED}⚠ Slow startup: ${STARTUP_MS}ms (expected <500ms)${NC}"
-    echo -e "${YELLOW}  Run: RUST_LOG=debug sierra-launcher to diagnose${NC}"
+    warn "Startup time: ${BOLD}${STARTUP_MS}ms${RESET}  ${DIM}${RED}slow — expected <500ms${RESET}"
+    info "Run: RUST_LOG=debug sierra-launcher  to diagnose"
 fi
+
+
+# ─────────────────────────────────────────────
+#   Done
+# ─────────────────────────────────────────────
 echo ""
-echo -e "${GREEN}╔════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║     Sierra Launcher Installed!         ║${NC}"
-echo -e "${GREEN}╚════════════════════════════════════════╝${NC}"
+echo -e "  ${GRAY}$(printf '%.0s─' $(seq 1 40))${RESET}"
 echo ""
-echo -e "${GREEN}✓ Binary:   /usr/local/bin/sierra-launcher${NC}"
-echo -e "${GREEN}✓ Config:   $CONFIG_FILE${NC}"
-echo -e "${GREEN}✓ Cache:    $CACHE_DIR${NC}"
-echo -e "${GREEN}✓ Service:  restore-wallpaper.service${NC}"
+echo -e "  ${BOLD}${GREEN}Installation complete${RESET}"
+echo ""
+echo -e "  ${GRAY}binary   ${RESET}  /usr/local/bin/sierra-launcher"
+echo -e "  ${GRAY}config   ${RESET}  $CONFIG_FILE"
+echo -e "  ${GRAY}cache    ${RESET}  $CACHE_DIR"
+echo -e "  ${GRAY}service  ${RESET}  restore-wallpaper.service"
+echo -e "  ${GRAY}walls    ${RESET}  $DEFAULT_WALLPAPER_DIR"
+echo ""
+echo -e "  ${DIM}${GRAY}Run:  sierra-launcher${RESET}"
+echo ""
