@@ -1,96 +1,114 @@
-// Handles all daemon/client socket logic
-
-use std::fs;
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{Sender, channel};
+use std::fs;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-fn socket_path() -> PathBuf {
+/// IPC commands that can be sent to the daemon
+#[derive(Debug, Clone, Copy)]
+pub enum IpcCommand {
+    Show,
+    Hide,
+    Toggle,
+}
+
+impl IpcCommand {
+    fn as_bytes(&self) -> &[u8] {
+        match self {
+            IpcCommand::Show => b"SHOW",
+            IpcCommand::Hide => b"HIDE",
+            IpcCommand::Toggle => b"TOGGLE",
+        }
+    }
+
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        match bytes {
+            b"SHOW" => Some(IpcCommand::Show),
+            b"HIDE" => Some(IpcCommand::Hide),
+            b"TOGGLE" => Some(IpcCommand::Toggle),
+            _ => None,
+        }
+    }
+}
+
+/// Global flag for show command
+static SHOW_PENDING: AtomicBool = AtomicBool::new(false);
+
+/// Get the socket path for IPC
+pub fn get_socket_path() -> PathBuf {
     let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
-        .unwrap_or_else(|_| format!("/run/user/{}", unsafe { libc::getuid() }));
+        .unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(runtime_dir).join("sierra-launcher.sock")
 }
 
-// Global channel for signaling show events to the main thread
-lazy_static::lazy_static! {
-    pub static ref SHOW_RECEIVER: Arc<Mutex<Option<std::sync::mpsc::Receiver<()>>>> = Arc::new(Mutex::new(None));
+/// Check if daemon is already running by trying to connect to socket
+pub fn is_daemon_running() -> bool {
+    let socket_path = get_socket_path();
+    socket_path.exists() && UnixStream::connect(&socket_path).is_ok()
 }
 
-/// Called at startup. Returns true if we sent to an existing daemon (client mode).
-/// Returns false if no daemon exists — caller should become the daemon.
-pub fn try_send_to_daemon() -> bool {
-    let path = socket_path();
-    if !path.exists() {
-        return false;
-    }
-    match UnixStream::connect(&path) {
-        Ok(mut stream) => {
-            let _ = stream.write_all(b"show");
-            true
-        }
-        Err(_) => {
-            // Stale socket — clean it up
-            let _ = fs::remove_file(&path);
-            false
-        }
-    }
+/// Send a command to the running daemon
+pub fn send_command(cmd: IpcCommand) -> Result<(), Box<dyn std::error::Error>> {
+    let socket_path = get_socket_path();
+    let mut stream = UnixStream::connect(&socket_path)?;
+    stream.write_all(cmd.as_bytes())?;
+    stream.flush()?;
+    Ok(())
 }
 
-/// Spawn a thread that listens on the socket.
-/// Calls `on_show` whenever a client sends "show".
-pub fn start_listener<F>(on_show: F)
-where
-    F: Fn() + Send + 'static,
-{
-    let path = socket_path();
-    // Clean up any stale socket from a previous crash
-    let _ = fs::remove_file(&path);
-
-    // Create channel for IPC
-    let (tx, rx) = channel();
+/// Create IPC server and return the listener
+pub fn create_server() -> Result<UnixListener, Box<dyn std::error::Error>> {
+    let socket_path = get_socket_path();
     
-    // Store receiver globally so subscription can poll it
-    {
-        let mut receiver = SHOW_RECEIVER.lock().unwrap();
-        *receiver = Some(rx);
+    // Remove existing socket if it exists
+    if socket_path.exists() {
+        fs::remove_file(&socket_path)?;
     }
+    
+    let listener = UnixListener::bind(&socket_path)?;
+    eprintln!("[IPC] Server created at {:?}", socket_path);
+    
+    Ok(listener)
+}
 
-    let listener = UnixListener::bind(&path)
-        .expect("Failed to bind sierra-launcher socket");
+/// Store a command for polling
+pub fn store_command(cmd: IpcCommand) {
+    match cmd {
+        IpcCommand::Show => SHOW_PENDING.store(true, Ordering::Relaxed),
+        IpcCommand::Hide => SHOW_PENDING.store(false, Ordering::Relaxed),
+        IpcCommand::Toggle => {
+            let current = SHOW_PENDING.load(Ordering::Relaxed);
+            SHOW_PENDING.store(!current, Ordering::Relaxed);
+        }
+    }
+}
 
-    std::thread::spawn(move || {
-        for stream in listener.incoming() {
-            match stream {
-                Ok(mut s) => {
-                    let mut buf = [0u8; 16];
-                    if let Ok(n) = s.read(&mut buf) {
-                        if &buf[..n] == b"show" {
-                            on_show();
-                            let _ = tx.send(());
-                        }
+/// Poll for show command (non-blocking)
+pub fn poll_show() -> bool {
+    SHOW_PENDING.swap(false, Ordering::Relaxed)
+}
+
+/// Listen for IPC commands (blocking)
+pub fn listen_for_commands<F>(listener: UnixListener, mut handler: F) 
+where
+    F: FnMut(IpcCommand) + Send + 'static,
+{
+    eprintln!("[IPC] Listening for commands...");
+    
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                let mut buffer = [0u8; 16];
+                if let Ok(n) = stream.read(&mut buffer) {
+                    if let Some(cmd) = IpcCommand::from_bytes(&buffer[..n]) {
+                        eprintln!("[IPC] Received command: {:?}", cmd);
+                        handler(cmd);
                     }
                 }
-                Err(_) => break,
+            }
+            Err(e) => {
+                eprintln!("[IPC] Connection error: {}", e);
             }
         }
-        // Clean up socket on exit
-        let _ = fs::remove_file(&path);
-    });
-}
-
-/// Check if a show signal was received (non-blocking)
-pub fn poll_show() -> bool {
-    let receiver = SHOW_RECEIVER.lock().unwrap();
-    if let Some(ref rx) = *receiver {
-        rx.try_recv().is_ok()
-    } else {
-        false
     }
-}
-
-/// Remove socket on clean shutdown
-pub fn cleanup() {
-    let _ = fs::remove_file(socket_path());
 }

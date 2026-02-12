@@ -18,15 +18,22 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             match event {
                 Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
                     match key {
+                        // ESC is now handled in main.rs daemon mode - it closes the window
                         keyboard::Key::Named(Named::Escape) => {
-                            std::process::exit(0);
+                            // Window will be closed by daemon, just reset state
+                            launcher.search_bar.input_value.clear();
+                            let _ = launcher.app_list.update(app_list::Message::SearchInput(String::new()));
+                            launcher.clipboard_visible = false;
+                            launcher.control_center_visible = false;
                         }
+                        
+                        keyboard::Key::Named(Named::Enter) => {
                             if launcher.clipboard_visible {
                                 return Command::perform(async {}, |_| Message::ClipboardSelect);
                             } else {
                                 // Launch selected app
                                 let _ = launcher.app_list.update(app_list::Message::LaunchSelected);
-                                std::process::exit(0);
+                                // DON'T EXIT - window closes itself via daemon
                             }
                         }
                         
@@ -48,7 +55,6 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                         
                         keyboard::Key::Named(Named::ArrowLeft) => {
                             if modifiers.shift() {
-                                // FIX: Toggle clipboard visibility
                                 launcher.clipboard_visible = !launcher.clipboard_visible;
                             } else {
                                 return Command::perform(async {}, |_| Message::CyclePanel(Direction::Left));
@@ -57,7 +63,6 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                         
                         keyboard::Key::Named(Named::ArrowRight) => {
                             if modifiers.shift() {
-                                // FIX: Toggle clipboard visibility
                                 launcher.clipboard_visible = !launcher.clipboard_visible;
                             } else {
                                 return Command::perform(async {}, |_| Message::CyclePanel(Direction::Right));
@@ -66,7 +71,6 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
 
                         keyboard::Key::Named(Named::Backspace) => {
                             if !launcher.clipboard_visible && !launcher.search_bar.input_value.is_empty() {
-                                // Handle backspace for search input
                                 launcher.search_bar.input_value.pop();
                                 let _ = launcher.app_list.update(app_list::Message::SearchInput(launcher.search_bar.input_value.clone()));
                             }
@@ -76,13 +80,14 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                             if launcher.clipboard_visible && modifiers.control() && c.as_str() == "d" {
                                 return Command::perform(async {}, |_| Message::ClipboardDelete);
                             } else if !launcher.clipboard_visible && !modifiers.control() && !modifiers.alt() && !modifiers.logo() {
-                                // Type into search bar even when not focused
                                 launcher.search_bar.input_value.push_str(c.as_str());
                                 let _ = launcher.app_list.update(app_list::Message::SearchInput(launcher.search_bar.input_value.clone()));
                             }
                         }
                         
-                        _ => {}
+                        _ => {
+                            // Ignore other keys
+                        }
                     }
                 }
                 Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) => {
@@ -98,12 +103,10 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             if launcher.is_first_frame {
                 launcher.is_first_frame = false;
                 
-                // Trigger lazy loading of apps in background
                 launcher.app_list.start_loading();
                 eprintln!("[Main] Triggered lazy app loading");
                 launcher.system_panel.start();
                 
-                // FIX: Load wallpaper index asynchronously on first frame
                 if launcher.wallpaper_index.is_none() {
                     if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
                         let wp_dir = wallpaper_dir.clone();
@@ -136,14 +139,10 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 launcher.last_color_check = now;
                 if launcher.config.use_pywal {
                     if let Some(ref watcher) = launcher.watcher {
-                        // Debounce: skip if we reloaded less than 1 second ago
-                        if now.duration_since(launcher.last_pywal_reload) > Duration::from_secs(1) {
-                            if watcher.check_for_changes() {
-                                if let Ok(wal_colors) = WalColors::load() {
-                                    launcher.theme = wal_colors.to_theme();
-                                    launcher.last_pywal_reload = now;
-                                    eprintln!("[Pywal] Theme reloaded");
-                                }
+                        if watcher.check_for_changes() {
+                            if let Ok(wal_colors) = WalColors::load() {
+                                launcher.theme = wal_colors.to_theme();
+                                eprintln!("Pywal theme reloaded");
                             }
                         }
                     }
@@ -170,7 +169,8 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 }
                 search_bar::Message::Submitted => {
                     let _ = launcher.app_list.update(app_list::Message::LaunchSelected);
-                    std::process::exit(0);
+                    // DON'T EXIT - let daemon handle window
+                    Command::none()
                 }
             }
         }
@@ -200,13 +200,11 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 launcher.services_panel.schedule_refresh();
             }
             
-            // FIX: Load wallpaper index when switching to wallpaper panel
             if launcher.current_panel == Panel::Wallpaper && launcher.wallpaper_index.is_none() {
                 if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
                     let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
                     launcher.wallpaper_index = manager.load_index();
                     
-                    // Restore selected index
                     if let (Some(last_wallpaper_path), Some(ref idx)) = (manager.get_last_wallpaper(), &launcher.wallpaper_index) {
                         if let Some(pos) = idx.wallpapers.iter().position(|e| e.path == last_wallpaper_path) {
                             launcher.wallpaper_selected_index = pos;
@@ -318,7 +316,8 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 .arg("(sleep 0.5 && systemctl suspend) &")
                 .spawn();
             
-            std::process::exit(0);
+            // DON'T EXIT - just let window close naturally
+            Command::none()
         }
 
         Message::ClipboardArrowUp => {
@@ -402,11 +401,46 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::NoOp => Command::none(),
         
         Message::ShowWindow => {
-            // Reset search bar and refocus
-            launcher.search_bar.input_value.clear();
-            let _ = launcher.app_list.update(app_list::Message::SearchInput(String::new()));
-            launcher.clipboard_selected_index = 0;
-            return focus(launcher.search_bar.input_id.clone());
+            // Window show is handled by main.rs
+            eprintln!("[IPC] ShowWindow message received");
+            Command::none()
         }
+        
+        Message::HideWindow => {
+            // Window hide is handled by main.rs
+            eprintln!("[IPC] HideWindow message received");
+            Command::none()
+        }
+        
+        Message::NewLayerShell { .. } => {
+            // Handled by layershell
+            Command::none()
+        }
+        
+        Message::Close(_id) => {
+            // Handled by main.rs
+            Command::none()
+        }
+        
+        Message::WindowClosed(_id) => {
+            // Handled by main.rs
+            Command::none()
+        }
+        
+        // Handle all layershell auto-generated messages (multi-window variants)
+        Message::AnchorChange { .. } => Command::none(),
+        Message::LayerChange { .. } => Command::none(),
+        Message::AnchorSizeChange { .. } => Command::none(),
+        Message::MarginChange { .. } => Command::none(),
+        Message::SizeChange { .. } => Command::none(),
+        Message::ExclusiveZoneChange { .. } => Command::none(),
+        Message::SetInputRegion { .. } => Command::none(),
+        Message::VirtualKeyboardPressed { .. } => Command::none(),
+        Message::NewBaseWindow { .. } => Command::none(),
+        Message::NewPopUp { .. } => Command::none(),
+        Message::NewMenu { .. } => Command::none(),
+        Message::NewInputPanel { .. } => Command::none(),
+        Message::RemoveWindow(_) => Command::none(),
+        Message::ForgetLastOutput => Command::none(),
     }
 }

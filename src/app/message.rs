@@ -1,8 +1,14 @@
 use iced::Event;
-use iced_layershell::actions::LayershellCustomActionWithId;
+use iced::window::Id;
+use iced_layershell::to_layer_message;
 use crate::panels::{search_bar, app_list};
 use crate::app::state::Direction;
 
+/// Window size constants
+pub const WINDOW_WIDTH: u32 = 484;
+pub const WINDOW_HEIGHT: u32 = 714;
+
+#[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 pub enum Message {
     IcedEvent(Event),
@@ -36,11 +42,9 @@ pub enum Message {
     NoOp,
     SetWallpaper(usize),
     ShowWindow,
-}
-
-impl TryInto<LayershellCustomActionWithId> for Message {
-    type Error = Self;
-    fn try_into(self) -> Result<LayershellCustomActionWithId, Self::Error> {
-        Err(self)
-    }
+    HideWindow,
+    /// Close a specific window
+    Close(Id),
+    /// Window was closed
+    WindowClosed(Id),
 }
