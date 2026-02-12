@@ -154,8 +154,9 @@ impl DaemonState {
                 let launcher = self.create_launcher();
                 self.windows.insert(id, launcher);
                 
-                // Create new layer shell with exclusive keyboard
+                // Create new layer shell with on-demand keyboard
                 // Use OutputOption::None to show on the current active output (where mouse is)
+                // Use OnDemand keyboard interactivity to avoid system freeze
                 Command::done(Message::NewLayerShell {
                     settings: NewLayerShellSettings {
                         size: Some((WINDOW_WIDTH, WINDOW_HEIGHT)),
@@ -163,7 +164,7 @@ impl DaemonState {
                         anchor: Anchor::Bottom,
                         exclusive_zone: Some(-1),
                         margin: Some((0, 0, 4, 0)),
-                        keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                        keyboard_interactivity: KeyboardInteractivity::OnDemand,
                         output_option: OutputOption::None,
                         events_transparent: false,
                         namespace: Some("sierra_launcher".to_string()),
@@ -172,11 +173,30 @@ impl DaemonState {
                 })
             }
             
+            Message::WindowReady => {
+                // Focus the search bar after window is ready
+                if let Some(launcher) = self.windows.values_mut().next() {
+                    eprintln!("[Daemon] Window ready - focusing search bar");
+                    return iced::widget::operation::focus(launcher.search_bar.input_id.clone());
+                }
+                Command::none()
+            }
+            
             Message::Close(id) => {
                 eprintln!("[Daemon] Closing window: {:?}", id);
                 self.windows.remove(&id);
                 // Use iced's built-in window close
                 iced::window::close(id)
+            }
+            
+            Message::AppLaunched => {
+                // App was launched, close the window
+                if let Some((&id, launcher)) = self.windows.iter_mut().next() {
+                    eprintln!("[Daemon] App launched - closing window {:?}", id);
+                    launcher.search_bar.input_value.clear();
+                    return iced::window::close(id);
+                }
+                Command::none()
             }
             
             Message::IcedEvent(iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { 
@@ -190,6 +210,112 @@ impl DaemonState {
                     launcher.clipboard_visible = false;
                     launcher.control_center_visible = false;
                     return iced::window::close(id);
+                }
+                Command::none()
+            }
+            
+            Message::IcedEvent(iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { 
+                key: iced::keyboard::Key::Named(iced::keyboard::key::Named::Enter), 
+                .. 
+            })) => {
+                // Launch selected app and close window
+                if let Some((id, launcher)) = self.windows.iter_mut().next() {
+                    eprintln!("[Input] Enter pressed - launching app");
+                    let _ = launcher.app_list.update(panels::app_list::Message::LaunchSelected);
+                    launcher.search_bar.input_value.clear();
+                    return iced::window::close(*id);
+                }
+                Command::none()
+            }
+            
+            Message::IcedEvent(iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { 
+                key: iced::keyboard::Key::Named(named), 
+                modifiers,
+                ..
+            })) => {
+                eprintln!("[Input] Key pressed: {:?}, modifiers: {:?}", named, modifiers);
+                // Handle arrow keys for panel cycling
+                if let Some(launcher) = self.windows.values_mut().next() {
+                    match named {
+                        iced::keyboard::key::Named::ArrowLeft => {
+                            if modifiers.shift() {
+                                // Shift+Left: Toggle clipboard
+                                launcher.clipboard_visible = !launcher.clipboard_visible;
+                            } else {
+                                // Plain Left: Cycle panel left
+                                // Order: Clock -> Weather -> Music -> Wallpaper -> Services -> System
+                                eprintln!("[Input] Left - cycling panel left");
+                                launcher.current_panel = match launcher.current_panel {
+                                    Panel::Clock => Panel::System,
+                                    Panel::System => Panel::Services,
+                                    Panel::Services => Panel::Wallpaper,
+                                    Panel::Wallpaper => Panel::Music,
+                                    Panel::Music => Panel::Weather,
+                                    Panel::Weather => Panel::Clock,
+                                };
+                            }
+                        }
+                        iced::keyboard::key::Named::ArrowRight => {
+                            if modifiers.shift() {
+                                // Shift+Right: Toggle clipboard
+                                launcher.clipboard_visible = !launcher.clipboard_visible;
+                            } else {
+                                // Plain Right: Cycle panel right
+                                // Order: Clock -> Weather -> Music -> Wallpaper -> Services -> System
+                                eprintln!("[Input] Right - cycling panel right");
+                                launcher.current_panel = match launcher.current_panel {
+                                    Panel::Clock => Panel::Weather,
+                                    Panel::Weather => Panel::Music,
+                                    Panel::Music => Panel::Wallpaper,
+                                    Panel::Wallpaper => Panel::Services,
+                                    Panel::Services => Panel::System,
+                                    Panel::System => Panel::Clock,
+                                };
+                            }
+                        }
+                        iced::keyboard::key::Named::ArrowUp => {
+                            if launcher.clipboard_visible {
+                                if launcher.clipboard_selected_index > 0 {
+                                    launcher.clipboard_selected_index -= 1;
+                                }
+                            } else {
+                                let _ = launcher.app_list.update(panels::app_list::Message::ArrowUp);
+                            }
+                        }
+                        iced::keyboard::key::Named::ArrowDown => {
+                            if launcher.clipboard_visible {
+                                launcher.clipboard_selected_index += 1;
+                            } else {
+                                let _ = launcher.app_list.update(panels::app_list::Message::ArrowDown);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Command::none()
+            }
+            
+            // Handle Ctrl+D for clipboard deletion
+            Message::IcedEvent(iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { 
+                key: iced::keyboard::Key::Character(c), 
+                modifiers,
+                ..
+            })) if modifiers.control() && c.as_str() == "d" => {
+                if let Some(launcher) = self.windows.values_mut().next() {
+                    if launcher.clipboard_visible {
+                        eprintln!("[Input] Ctrl+D - deleting clipboard entry");
+                        // Delete clipboard entry directly
+                        let items = crate::utils::data::search_items("");
+                        if !items.is_empty() && launcher.clipboard_selected_index < items.len() {
+                            crate::utils::data::delete_item(launcher.clipboard_selected_index);
+                            let new_count = crate::utils::data::item_count();
+                            if launcher.clipboard_selected_index >= new_count && new_count > 0 {
+                                launcher.clipboard_selected_index = new_count - 1;
+                            } else if new_count == 0 {
+                                launcher.clipboard_selected_index = 0;
+                            }
+                        }
+                    }
                 }
                 Command::none()
             }

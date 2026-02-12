@@ -43,6 +43,12 @@ pub enum Message {
     SetWallpaper(usize),
     ShowWindow,
     HideWindow,
+    /// Focus the search bar (delayed)
+    FocusSearchBar,
+    /// Window is ready for focus
+    WindowReady,
+    /// App was launched, close the window
+    AppLaunched,
     /// Close a specific window
     Close(Id),
     /// Window was closed

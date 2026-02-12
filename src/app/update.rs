@@ -55,17 +55,17 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                         
                         keyboard::Key::Named(Named::ArrowLeft) => {
                             if modifiers.shift() {
-                                launcher.clipboard_visible = !launcher.clipboard_visible;
-                            } else {
                                 return Command::perform(async {}, |_| Message::CyclePanel(Direction::Left));
+                            } else {
+                                launcher.clipboard_visible = !launcher.clipboard_visible;
                             }
                         }
                         
                         keyboard::Key::Named(Named::ArrowRight) => {
                             if modifiers.shift() {
-                                launcher.clipboard_visible = !launcher.clipboard_visible;
-                            } else {
                                 return Command::perform(async {}, |_| Message::CyclePanel(Direction::Right));
+                            } else {
+                                launcher.clipboard_visible = !launcher.clipboard_visible;
                             }
                         }
 
@@ -107,15 +107,19 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 eprintln!("[Main] Triggered lazy app loading");
                 launcher.system_panel.start();
                 
+                // Load wallpaper index synchronously so it's available immediately
                 if launcher.wallpaper_index.is_none() {
                     if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
-                        let wp_dir = wallpaper_dir.clone();
-                        std::thread::spawn(move || {
-                            let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wp_dir);
-                            if let Some(_index) = manager.load_index() {
-                                eprintln!("[Wallpaper] Index loaded in background");
+                        let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
+                        launcher.wallpaper_index = manager.load_index();
+                        eprintln!("[Wallpaper] Index loaded: {:?}", launcher.wallpaper_index.as_ref().map(|i| i.wallpapers.len()));
+                        
+                        // Set selected index to last wallpaper
+                        if let (Some(last_wallpaper_path), Some(ref idx)) = (manager.get_last_wallpaper(), &launcher.wallpaper_index) {
+                            if let Some(pos) = idx.wallpapers.iter().position(|e| e.path == last_wallpaper_path) {
+                                launcher.wallpaper_selected_index = pos;
                             }
-                        });
+                        }
                     }
                 }
                 
@@ -123,7 +127,8 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                     launcher.watcher = ColorWatcher::new().ok();
                 }
                 
-                return focus(launcher.search_bar.input_id.clone());
+                // Return WindowReady message to trigger focus
+                return Command::done(Message::WindowReady);
             }
             
             if launcher.app_list.check_loaded() {
@@ -169,8 +174,8 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 }
                 search_bar::Message::Submitted => {
                     let _ = launcher.app_list.update(app_list::Message::LaunchSelected);
-                    // DON'T EXIT - let daemon handle window
-                    Command::none()
+                    // Send AppLaunched message to close the window
+                    Command::done(Message::AppLaunched)
                 }
             }
         }
@@ -400,6 +405,16 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
 
         Message::NoOp => Command::none(),
         
+        Message::FocusSearchBar => {
+            // Focus the search bar input
+            iced::widget::operation::focus(launcher.search_bar.input_id.clone())
+        }
+        
+        Message::WindowReady => {
+            // Handled by main.rs
+            Command::none()
+        }
+        
         Message::ShowWindow => {
             // Window show is handled by main.rs
             eprintln!("[IPC] ShowWindow message received");
@@ -424,6 +439,11 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         
         Message::WindowClosed(_id) => {
             // Handled by main.rs
+            Command::none()
+        }
+        
+        Message::AppLaunched => {
+            // Handled by main.rs - close the window
             Command::none()
         }
         
