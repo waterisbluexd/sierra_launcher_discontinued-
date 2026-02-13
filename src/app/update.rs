@@ -294,35 +294,40 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::PowerOffTheSystem => {
             launcher.control_center_visible = false;
             
+            // Close window first, then poweroff
             std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(100));
                 let _ = std::process::Command::new("systemctl")
                     .arg("poweroff")
                     .output();
             });
-            Command::none()
+            Command::done(Message::AppLaunched)
         }
 
         Message::RestartTheSystem => {
             launcher.control_center_visible = false;
             
+            // Close window first, then reboot
             std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(100));
                 let _ = std::process::Command::new("systemctl")
                     .arg("reboot")
                     .output();
             });
-            Command::none()
+            Command::done(Message::AppLaunched)
         }
 
         Message::SleepModeTheSystem => {
             launcher.control_center_visible = false;
             
-            let _ = std::process::Command::new("bash")
-                .arg("-c")
-                .arg("(sleep 0.5 && systemctl suspend) &")
-                .spawn();
-            
-            // DON'T EXIT - just let window close naturally
-            Command::none()
+            // Close window first, then suspend
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                let _ = std::process::Command::new("systemctl")
+                    .arg("suspend")
+                    .output();
+            });
+            Command::done(Message::AppLaunched)
         }
 
         Message::ClipboardArrowUp => {

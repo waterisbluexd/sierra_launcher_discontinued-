@@ -9,7 +9,7 @@ use app::message::Message;
 use iced_layershell::build_pattern::daemon;
 use iced::{Task as Command, Color, Element};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption};
-use iced_layershell::settings::{Settings, LayerShellSettings};
+use iced_layershell::settings::{Settings, LayerShellSettings, StartMode};
 use iced::window::Id;
 use crate::utils::theme::Theme;
 use crate::utils::wallpaper_manager::WallpaperManager;
@@ -94,10 +94,11 @@ fn main() -> Result<(), iced_layershell::Error> {
     .subscription(DaemonState::subscription)
     .settings(Settings {
         layer_settings: LayerShellSettings {
-            size: Some((WINDOW_WIDTH, WINDOW_HEIGHT)),
+            size: None,  // No initial window size
             anchor: Anchor::Bottom,
             keyboard_interactivity: KeyboardInteractivity::OnDemand,
             margin: (0, 0, 4, 0),
+            start_mode: StartMode::Background,  // Start as background daemon
             ..Default::default()
         },
         ..Default::default()
@@ -343,8 +344,8 @@ impl DaemonState {
     }
     
     fn subscription(&self) -> iced::Subscription<Message> {
-        // Poll for IPC commands
-        let ipc_poll = iced::window::frames()
+        // Poll for IPC commands using time-based subscription (works without windows)
+        let ipc_poll = iced::time::every(std::time::Duration::from_millis(16))
             .filter_map(|_| {
                 if ipc::poll_show() {
                     Some(Message::ShowWindow)

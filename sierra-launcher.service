@@ -10,10 +10,6 @@ ExecStart=/usr/bin/sierra-launcher-daemon
 Restart=on-failure
 RestartSec=2s
 
-# Wayland environment
-Environment="WAYLAND_DISPLAY=wayland-1"
-Environment="XDG_RUNTIME_DIR=%t"
-
 # Clean up socket on exit
 ExecStopPost=/bin/rm -f %t/sierra-launcher.sock
 
