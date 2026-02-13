@@ -152,14 +152,12 @@ impl WallpaperManager {
     /// OPTIMIZED: Only generate cache if it doesn't exist or is invalid
     pub fn ensure_cache(&self) {
         if self.load_index().is_some() {
-            eprintln!("[Wallpaper] Valid cache exists - skipping generation");
             return;
         }
 
         eprintln!("[Wallpaper] Generating fresh cache...");
         
         if fs::create_dir_all(&self.cache_dir).is_err() {
-            eprintln!("[Wallpaper] Failed to create cache dir");
             return;
         }
 

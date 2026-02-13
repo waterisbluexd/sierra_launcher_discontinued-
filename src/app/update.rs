@@ -111,6 +111,10 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 if launcher.wallpaper_index.is_none() {
                     if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
                         let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
+                        
+                        // Generate cache if it doesn't exist
+                        manager.ensure_cache();
+                        
                         launcher.wallpaper_index = manager.load_index();
                         eprintln!("[Wallpaper] Index loaded: {:?}", launcher.wallpaper_index.as_ref().map(|i| i.wallpapers.len()));
                         
@@ -208,6 +212,10 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             if launcher.current_panel == Panel::Wallpaper && launcher.wallpaper_index.is_none() {
                 if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
                     let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
+                    
+                    // Generate cache if it doesn't exist
+                    manager.ensure_cache();
+                    
                     launcher.wallpaper_index = manager.load_index();
                     
                     if let (Some(last_wallpaper_path), Some(ref idx)) = (manager.get_last_wallpaper(), &launcher.wallpaper_index) {
