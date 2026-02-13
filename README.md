@@ -138,6 +138,10 @@ title_animation = "Wave"  # Options: Rainbow, Wave, InOutWave, Pulse, Sparkle, G
 # Wallpaper Directory
 wallpaper_dir = "~/Pictures/Wallpapers"
 
+# Weather Location (optional - auto-detected via IP if not set)
+# Examples: "New York", "London, UK", "Mumbai, India"
+weather_location = "Mumbai, India"
+
 # Theme Mode
 use_pywal = false  # Set to true to use pywal colors
 

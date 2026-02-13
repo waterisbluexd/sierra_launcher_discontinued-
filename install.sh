@@ -166,26 +166,7 @@ sudo chmod +x /usr/bin/sierra-launcher-daemon
 ok "Daemon binary installed"
 
 step "Installing wrapper script to /usr/bin/sierra-launcher..."
-sudo tee /usr/bin/sierra-launcher > /dev/null << 'WRAPPER'
-#!/bin/bash
-# sierra-launcher wrapper script
-# Handles IPC communication with daemon
-
-SOCKET_PATH="${XDG_RUNTIME_DIR:-/tmp}/sierra-launcher.sock"
-BINARY="/usr/bin/sierra-launcher-daemon"
-
-# Check if daemon is running
-if [ -S "$SOCKET_PATH" ]; then
-    # Send SHOW command to daemon
-    echo "SHOW" | socat - UNIX-CONNECT:"$SOCKET_PATH" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        exit 0
-    fi
-fi
-
-# Daemon not running, start it
-exec "$BINARY"
-WRAPPER
+sudo cp sh/sierra-launcher-wrapper.sh /usr/bin/sierra-launcher
 sudo chmod +x /usr/bin/sierra-launcher
 ok "Wrapper script installed"
 
@@ -196,27 +177,7 @@ header "Systemd Service"
 
 step "Installing systemd user service..."
 mkdir -p ~/.config/systemd/user/
-
-cat > ~/.config/systemd/user/sierra-launcher.service << 'SERVICE'
-[Unit]
-Description=Sierra Launcher Daemon
-After=graphical-session.target
-Wants=graphical-session.target
-PartOf=graphical-session.target
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/sierra-launcher-daemon
-Restart=on-failure
-RestartSec=2s
-
-# Clean up socket on exit
-ExecStopPost=/bin/rm -f %t/sierra-launcher.sock
-
-[Install]
-WantedBy=graphical-session.target
-SERVICE
-
+cp sh/sierra-launcher.service ~/.config/systemd/user/
 ok "Service file installed"
 
 step "Reloading systemd daemon..."

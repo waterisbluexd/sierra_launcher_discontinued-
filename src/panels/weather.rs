@@ -9,7 +9,7 @@ use std::thread;
 use std::time::{Duration, SystemTime};
 
 const CACHE_FILE: &str = ".cache/sierra/weather.cache";
-const CACHE_VALIDITY_SECS: u64 = 3600; // 1 hour
+const CACHE_VALIDITY_SECS: u64 = 1800; // 30 minutes (reduced for better accuracy)
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherData {
@@ -83,6 +83,10 @@ pub struct WeatherPanel {
 
 impl WeatherPanel {
     pub fn new() -> Self {
+        Self::with_location(None)
+    }
+    
+    pub fn with_location(location: Option<String>) -> Self {
         let weather_data = Arc::new(Mutex::new(None));
         let is_updating = Arc::new(Mutex::new(false));
         
@@ -113,7 +117,7 @@ impl WeatherPanel {
         thread::spawn(move || {
             // Set a timeout - if it takes too long, give up
             let result = std::panic::catch_unwind(|| {
-                match Self::fetch_weather_data() {
+                match Self::fetch_weather_data(&location) {
                     Ok(new_data) => {
                         eprintln!("[Weather] ✓ Fetched fresh weather data");
                         *weather_clone.lock().unwrap() = Some(new_data.clone());
@@ -191,17 +195,27 @@ impl WeatherPanel {
         }
     }
 
-    fn fetch_weather_data() -> Result<WeatherData, Box<dyn std::error::Error>> {
+    fn fetch_weather_data(location: &Option<String>) -> Result<WeatherData, Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(5))
-            .connect_timeout(Duration::from_secs(3))
+            .timeout(Duration::from_secs(10))
+            .connect_timeout(Duration::from_secs(5))
             .build()?;
 
-        let url = "https://wttr.in/?format=j1";
+        // Build URL with location - wttr.in auto-detects location by IP if no location specified
+        let url = if let Some(loc) = location {
+            eprintln!("[Weather] Using configured location: {}", loc);
+            format!("https://wttr.in/{}?format=j1", 
+                urlencoding::encode(loc))
+        } else {
+            eprintln!("[Weather] Using IP-based location detection");
+            "https://wttr.in/?format=j1".to_string()
+        };
+        
+        eprintln!("[Weather] Fetching from: {}", url);
         
         let weather_resp: WttrResponse = client
-            .get(url)
-            .header("User-Agent", "sierra-launcher/1.0")
+            .get(&url)
+            .header("User-Agent", "curl/7.68.0")  // wttr.in prefers curl user agent
             .send()?
             .json()?;
 

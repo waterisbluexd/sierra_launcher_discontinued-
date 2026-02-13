@@ -12,6 +12,7 @@ pub struct ConfigFile {
     pub title_text: Option<String>,
     pub title_animation: Option<String>,
     pub wallpaper_dir: Option<String>,
+    pub weather_location: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -47,6 +48,7 @@ pub struct Config {
     pub title_text: String,
     pub title_animation: String,
     pub wallpaper_dir: Option<PathBuf>,
+    pub weather_location: Option<String>,
 }
 
 impl Config {
@@ -79,6 +81,7 @@ impl Config {
                 .title_animation
                 .unwrap_or_else(|| "Wave".to_string()),
             wallpaper_dir,
+            weather_location: config_file.weather_location,
         }
     }
 
@@ -98,6 +101,7 @@ impl Config {
             title_text: Some(" sierra-launcher ".to_string()),
             title_animation: Some("Wave".to_string()),
             wallpaper_dir: Some("~/Pictures/Wallpapers".to_string()),
+            weather_location: None,
         }
     }
 
@@ -162,6 +166,7 @@ impl Default for Config {
             title_text: " sierra-launcher ".to_string(),
             title_animation: "Wave".to_string(),
             wallpaper_dir: None,
+            weather_location: None,
         }
     }
 }

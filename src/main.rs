@@ -377,7 +377,7 @@ impl DaemonState {
             search_bar: SearchBar::new(),
             app_list: AppList::new(),
             current_panel: Panel::Clock,
-            weather_panel: WeatherPanel::new(),
+            weather_panel: WeatherPanel::with_location(self.config.weather_location.clone()),
             music_player: MusicPlayer::new(),
             system_panel: SystemPanel::new(),
             services_panel: ServicesPanel::new(),
