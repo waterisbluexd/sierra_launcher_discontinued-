@@ -7,12 +7,13 @@ BINARY="/usr/bin/sierra-launcher-daemon"
 
 # Check if daemon is running
 if [ -S "$SOCKET_PATH" ]; then
-    # Send SHOW command to daemon
-    echo "SHOW" | socat - UNIX-CONNECT:"$SOCKET_PATH" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        exit 0
+    # Try socat first, then nc as fallback
+    if command -v socat &>/dev/null; then
+        echo "SHOW" | socat - UNIX-CONNECT:"$SOCKET_PATH" 2>/dev/null && exit 0
+    elif command -v nc &>/dev/null; then
+        echo "SHOW" | nc -U "$SOCKET_PATH" 2>/dev/null && exit 0
     fi
 fi
 
-# Daemon not running, start it
+# Daemon not running or IPC failed, start it
 exec "$BINARY"

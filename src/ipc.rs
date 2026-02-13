@@ -22,7 +22,13 @@ impl IpcCommand {
     }
 
     fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        match bytes {
+        // Trim whitespace/newlines from the command
+        let trimmed: Vec<u8> = bytes.iter()
+            .copied()
+            .filter(|&b| b != b'\n' && b != b'\r' && b != b' ')
+            .collect();
+        
+        match trimmed.as_slice() {
             b"SHOW" => Some(IpcCommand::Show),
             b"HIDE" => Some(IpcCommand::Hide),
             b"TOGGLE" => Some(IpcCommand::Toggle),
@@ -95,14 +101,25 @@ where
 {
     eprintln!("[IPC] Listening for commands...");
     
+    // Set non-blocking mode to check if thread is alive
     for stream in listener.incoming() {
+        eprintln!("[IPC] Incoming connection attempt...");
         match stream {
             Ok(mut stream) => {
+                eprintln!("[IPC] Connection accepted");
                 let mut buffer = [0u8; 16];
-                if let Ok(n) = stream.read(&mut buffer) {
-                    if let Some(cmd) = IpcCommand::from_bytes(&buffer[..n]) {
-                        eprintln!("[IPC] Received command: {:?}", cmd);
-                        handler(cmd);
+                match stream.read(&mut buffer) {
+                    Ok(n) => {
+                        eprintln!("[IPC] Read {} bytes: {:?}", n, &buffer[..n]);
+                        if let Some(cmd) = IpcCommand::from_bytes(&buffer[..n]) {
+                            eprintln!("[IPC] Received command: {:?}", cmd);
+                            handler(cmd);
+                        } else {
+                            eprintln!("[IPC] Unknown command: {:?}", &buffer[..n]);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[IPC] Read error: {}", e);
                     }
                 }
             }
@@ -111,4 +128,5 @@ where
             }
         }
     }
+    eprintln!("[IPC] Listener loop ended");
 }
