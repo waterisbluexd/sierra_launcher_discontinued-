@@ -150,6 +150,12 @@ impl DaemonState {
             Message::ShowWindow => {
                 eprintln!("[Daemon] ShowWindow - creating new window");
                 
+                // If a window already exists, don't create another one
+                if !self.windows.is_empty() {
+                    eprintln!("[Daemon] Window already exists, skipping creation");
+                    return Command::none();
+                }
+                
                 // Create a new launcher window
                 let id = Id::unique();
                 let launcher = self.create_launcher();
@@ -158,12 +164,13 @@ impl DaemonState {
                 // Create new layer shell with on-demand keyboard
                 // Use OutputOption::None to show on the current active output (where mouse is)
                 // Use OnDemand keyboard interactivity to avoid system freeze
+                // exclusive_zone: 0 means the window doesn't reserve space and allows click-through when closed
                 Command::done(Message::NewLayerShell {
                     settings: NewLayerShellSettings {
                         size: Some((WINDOW_WIDTH, WINDOW_HEIGHT)),
                         layer: Layer::Overlay,
                         anchor: Anchor::Bottom,
-                        exclusive_zone: Some(-1),
+                        exclusive_zone: Some(0),  // 0 = no reservation, allows proper cleanup
                         margin: Some((0, 0, 4, 0)),
                         keyboard_interactivity: KeyboardInteractivity::OnDemand,
                         output_option: OutputOption::None,

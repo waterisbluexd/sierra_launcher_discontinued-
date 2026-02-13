@@ -197,17 +197,20 @@ impl WeatherPanel {
 
     fn fetch_weather_data(location: &Option<String>) -> Result<WeatherData, Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(10))
-            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(20))
+            .connect_timeout(Duration::from_secs(10))
             .build()?;
 
         // Build URL with location - wttr.in auto-detects location by IP if no location specified
+        // Use simple location name without encoding issues
         let url = if let Some(loc) = location {
             eprintln!("[Weather] Using configured location: {}", loc);
-            format!("https://wttr.in/{}?format=j1", 
-                urlencoding::encode(loc))
+            // Simplify location - just use city name
+            let simple_loc = loc.split(',').next().unwrap_or(loc).trim();
+            format!("https://wttr.in/{}?format=j1", simple_loc)
         } else {
-            eprintln!("[Weather] Using IP-based location detection");
+            // wttr.in automatically detects location by IP when no location is specified
+            eprintln!("[Weather] Auto-detecting location via IP...");
             "https://wttr.in/?format=j1".to_string()
         };
         
@@ -220,15 +223,21 @@ impl WeatherPanel {
             .json()?;
 
         let current = &weather_resp.current_condition[0];
-        let hourly = weather_resp.weather[0].hourly
-            .iter()
-            .map(|h| HourlyData {
-                time: h.time.clone(),
-                temp_c: h.temp_c.clone(),
-                windspeed_kmph: h.windspeed_kmph.clone(),
-                precip_mm: h.precip_mm.clone(),
-            })
-            .collect();
+        
+        // Collect all hourly data from all weather days
+        let mut all_hourly: Vec<HourlyData> = Vec::new();
+        for day in &weather_resp.weather {
+            for h in &day.hourly {
+                all_hourly.push(HourlyData {
+                    time: h.time.clone(),
+                    temp_c: h.temp_c.clone(),
+                    windspeed_kmph: h.windspeed_kmph.clone(),
+                    precip_mm: h.precip_mm.clone(),
+                });
+            }
+        }
+        
+        eprintln!("[Weather] Got {} hourly data points", all_hourly.len());
 
         Ok(WeatherData {
             temp: current.temp_c.clone(),
@@ -237,25 +246,28 @@ impl WeatherPanel {
             humidity: current.humidity.clone(),
             wind_speed: current.windspeed_kmph.clone(),
             wind_dir: current.winddir16_point.clone(),
-            hourly,
+            hourly: all_hourly,
             cached_at: SystemTime::now(),
         })
     }
 
     fn format_hourly_forecast(hourly: &[HourlyData]) -> Vec<String> {
-        const TIME_SLOTS: [&str; 8] = ["0000", "0300", "0600", "0900", "1200", "1500", "1800", "2100"];
+        // Time slots in 3-hour intervals (wttr.in format: "0", "300", "600", etc.)
+        const TIME_SLOTS: [&str; 8] = ["0", "300", "600", "900", "1200", "1500", "1800", "2100"];
         const TIME_LABELS: [&str; 8] = ["12am", "3am", "6am", "9am", "12pm", "3pm", "6pm", "9pm"];
         
         let now = Local::now();
         let current_hour = now.hour();
-        let start_slot = (current_hour / 3) % 8;
+        
+        // Find the current 3-hour slot (0-7)
+        let current_slot = (current_hour / 3) as usize;
         
         let mut lines = Vec::with_capacity(4);
         
-        // Header line
+        // Header line - show next 6 time slots starting from current
         let mut header = String::with_capacity(50);
         for i in 0..6 {
-            let slot_idx = (start_slot as usize + i) % 8;
+            let slot_idx = (current_slot + i) % 8;
             header.push_str(&format!("{:>7}", TIME_LABELS[slot_idx]));
         }
         lines.push(header);
@@ -263,9 +275,11 @@ impl WeatherPanel {
         // Temperature line
         let mut temp_line = String::with_capacity(50);
         for i in 0..6 {
-            let slot_idx = (start_slot as usize + i) % 8;
-            if let Some(hour_data) = hourly.iter().find(|h| h.time == TIME_SLOTS[slot_idx]) {
-                temp_line.push_str(&format!("{:>7}", format!("{}°", hour_data.temp_c)));
+            let slot_idx = (current_slot + i) % 8;
+            // Find matching hour data from today's forecast
+            let hour_data = hourly.iter().find(|h| h.time == TIME_SLOTS[slot_idx]);
+            if let Some(data) = hour_data {
+                temp_line.push_str(&format!("{:>7}", format!("{}°", data.temp_c)));
             } else {
                 temp_line.push_str("     --");
             }
@@ -275,9 +289,10 @@ impl WeatherPanel {
         // Wind line
         let mut wind_line = String::with_capacity(50);
         for i in 0..6 {
-            let slot_idx = (start_slot as usize + i) % 8;
-            if let Some(hour_data) = hourly.iter().find(|h| h.time == TIME_SLOTS[slot_idx]) {
-                wind_line.push_str(&format!("{:>7}", format!("{}k", hour_data.windspeed_kmph)));
+            let slot_idx = (current_slot + i) % 8;
+            let hour_data = hourly.iter().find(|h| h.time == TIME_SLOTS[slot_idx]);
+            if let Some(data) = hour_data {
+                wind_line.push_str(&format!("{:>7}", format!("{}k", data.windspeed_kmph)));
             } else {
                 wind_line.push_str("    --k");
             }
@@ -287,9 +302,10 @@ impl WeatherPanel {
         // Precipitation line
         let mut precip_line = String::with_capacity(50);
         for i in 0..6 {
-            let slot_idx = (start_slot as usize + i) % 8;
-            if let Some(hour_data) = hourly.iter().find(|h| h.time == TIME_SLOTS[slot_idx]) {
-                precip_line.push_str(&format!("{:>7}", format!("{}mm", hour_data.precip_mm)));
+            let slot_idx = (current_slot + i) % 8;
+            let hour_data = hourly.iter().find(|h| h.time == TIME_SLOTS[slot_idx]);
+            if let Some(data) = hour_data {
+                precip_line.push_str(&format!("{:>7}", format!("{}mm", data.precip_mm)));
             } else {
                 precip_line.push_str("   --mm");
             }
