@@ -304,10 +304,14 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             
             // Close window first, then poweroff
             std::thread::spawn(|| {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-                let _ = std::process::Command::new("systemctl")
+                // Increased delay to allow proper window cleanup
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                let result = std::process::Command::new("systemctl")
                     .arg("poweroff")
                     .output();
+                if let Err(e) = result {
+                    eprintln!("[PowerOff] Failed: {}", e);
+                }
             });
             Command::done(Message::AppLaunched)
         }
@@ -317,10 +321,14 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             
             // Close window first, then reboot
             std::thread::spawn(|| {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-                let _ = std::process::Command::new("systemctl")
+                // Increased delay to allow proper window cleanup
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                let result = std::process::Command::new("systemctl")
                     .arg("reboot")
                     .output();
+                if let Err(e) = result {
+                    eprintln!("[Restart] Failed: {}", e);
+                }
             });
             Command::done(Message::AppLaunched)
         }
@@ -330,10 +338,14 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             
             // Close window first, then suspend
             std::thread::spawn(|| {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-                let _ = std::process::Command::new("systemctl")
+                // Increased delay to allow proper window cleanup
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                let result = std::process::Command::new("systemctl")
                     .arg("suspend")
                     .output();
+                if let Err(e) = result {
+                    eprintln!("[Suspend] Failed: {}", e);
+                }
             });
             Command::done(Message::AppLaunched)
         }
