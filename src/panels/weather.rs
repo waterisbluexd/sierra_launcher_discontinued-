@@ -13,6 +13,7 @@ const CACHE_VALIDITY_SECS: u64 = 1800; // 30 minutes (reduced for better accurac
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherData {
+    location: String,  // Store the location this data was fetched for
     temp: String,
     feels_like: String,
     condition: String,
@@ -79,6 +80,7 @@ struct HourlyForecast {
 pub struct WeatherPanel {
     weather_data: Arc<Mutex<Option<WeatherData>>>,
     is_updating: Arc<Mutex<bool>>,
+    last_error: Arc<Mutex<Option<String>>>,
 }
 
 impl WeatherPanel {
@@ -89,38 +91,53 @@ impl WeatherPanel {
     pub fn with_location(location: Option<String>) -> Self {
         let weather_data = Arc::new(Mutex::new(None));
         let is_updating = Arc::new(Mutex::new(false));
+        let last_error = Arc::new(Mutex::new(None));
+        
+        // Normalize location for comparison
+        let location_key = location.clone().unwrap_or_else(|| "auto".to_string());
+        let location_normalized = location_key.split(',').next().unwrap_or(&location_key).trim().to_lowercase();
         
         // Try to load from cache IMMEDIATELY (synchronous, fast)
         if let Some(cached) = Self::load_from_cache() {
-            eprintln!("[Weather] ✓ Loaded cached weather data");
-            *weather_data.lock().unwrap() = Some(cached.clone());
+            // Check if cached location matches requested location
+            let cached_location_normalized = cached.location.split(',').next().unwrap_or(&cached.location).trim().to_lowercase();
+            let location_matches = cached_location_normalized == location_normalized;
             
-            // Check if cache is still fresh
-            if let Ok(age) = SystemTime::now().duration_since(cached.cached_at) {
-                if age.as_secs() < CACHE_VALIDITY_SECS {
-                    eprintln!("[Weather] ✓ Cache is fresh ({} sec old), skipping fetch", age.as_secs());
-                    return Self { weather_data, is_updating };
-                } else {
-                    eprintln!("[Weather] Cache expired ({} sec old), fetching fresh data...", age.as_secs());
+            if location_matches {
+                eprintln!("[Weather] ✓ Loaded cached weather data for: {}", cached.location);
+                *weather_data.lock().unwrap_or_else(|e| e.into_inner()) = Some(cached.clone());
+                
+                // Check if cache is still fresh
+                if let Ok(age) = SystemTime::now().duration_since(cached.cached_at) {
+                    if age.as_secs() < CACHE_VALIDITY_SECS {
+                        eprintln!("[Weather] ✓ Cache is fresh ({} sec old), skipping fetch", age.as_secs());
+                        return Self { weather_data, is_updating, last_error };
+                    } else {
+                        eprintln!("[Weather] Cache expired ({} sec old), fetching fresh data...", age.as_secs());
+                    }
                 }
+            } else {
+                eprintln!("[Weather] Cache location mismatch (cached: '{}', requested: '{}'), fetching fresh data...", cached.location, location_key);
             }
         } else {
             eprintln!("[Weather] No cache found, fetching weather data...");
         }
         
-        // Cache is stale or missing - fetch in background (non-blocking)
+        // Cache is stale, missing, or location mismatch - fetch in background (non-blocking)
         let weather_clone = Arc::clone(&weather_data);
         let updating_clone = Arc::clone(&is_updating);
+        let error_clone = Arc::clone(&last_error);
         
-        *is_updating.lock().unwrap() = true;
+        *is_updating.lock().unwrap_or_else(|e| e.into_inner()) = true;
         
         thread::spawn(move || {
             // Set a timeout - if it takes too long, give up
             let result = std::panic::catch_unwind(|| {
                 match Self::fetch_weather_data(&location) {
                     Ok(new_data) => {
-                        eprintln!("[Weather] ✓ Fetched fresh weather data");
-                        *weather_clone.lock().unwrap() = Some(new_data.clone());
+                        eprintln!("[Weather] ✓ Fetched fresh weather data for: {}", new_data.location);
+                        *weather_clone.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_data.clone());
+                        *error_clone.lock().unwrap_or_else(|e| e.into_inner()) = None;
                         
                         if let Err(e) = Self::save_to_cache(&new_data) {
                             eprintln!("[Weather] ⚠ Failed to save cache: {}", e);
@@ -130,18 +147,20 @@ impl WeatherPanel {
                     }
                     Err(e) => {
                         eprintln!("[Weather] ⚠ Failed to fetch weather: {}", e);
+                        *error_clone.lock().unwrap_or_else(|e| e.into_inner()) = Some(e.to_string());
                     }
                 }
             });
             
             if result.is_err() {
                 eprintln!("[Weather] ⚠ Weather fetch panicked");
+                *error_clone.lock().unwrap_or_else(|e| e.into_inner()) = Some("Weather fetch crashed".to_string());
             }
             
-            *updating_clone.lock().unwrap() = false;
+            *updating_clone.lock().unwrap_or_else(|e| e.into_inner()) = false;
         });
 
-        Self { weather_data, is_updating }
+        Self { weather_data, is_updating, last_error }
     }
 
     fn get_cache_path() -> PathBuf {
@@ -196,31 +215,27 @@ impl WeatherPanel {
     }
 
     fn fetch_weather_data(location: &Option<String>) -> Result<WeatherData, Box<dyn std::error::Error>> {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(20))
-            .connect_timeout(Duration::from_secs(10))
-            .build()?;
-
         // Build URL with location - wttr.in auto-detects location by IP if no location specified
-        // Use simple location name without encoding issues
-        let url = if let Some(loc) = location {
+        let (url, location_name) = if let Some(loc) = location {
             eprintln!("[Weather] Using configured location: {}", loc);
-            // Simplify location - just use city name
             let simple_loc = loc.split(',').next().unwrap_or(loc).trim();
-            format!("https://wttr.in/{}?format=j1", simple_loc)
+            (format!("https://wttr.in/{}?format=j1", simple_loc), simple_loc.to_string())
         } else {
-            // wttr.in automatically detects location by IP when no location is specified
             eprintln!("[Weather] Auto-detecting location via IP...");
-            "https://wttr.in/?format=j1".to_string()
+            ("https://wttr.in/?format=j1".to_string(), "auto".to_string())
         };
         
         eprintln!("[Weather] Fetching from: {}", url);
         
-        let weather_resp: WttrResponse = client
+        // Use ureq for simple blocking HTTP request with timeout
+        let response = ureq::AgentBuilder::new()
+            .timeout(Duration::from_secs(20))
+            .build()
             .get(&url)
-            .header("User-Agent", "curl/7.68.0")  // wttr.in prefers curl user agent
-            .send()?
-            .json()?;
+            .set("User-Agent", "curl/7.68.0")
+            .call()?;
+        
+        let weather_resp: WttrResponse = response.into_json()?;
 
         let current = &weather_resp.current_condition[0];
         
@@ -240,6 +255,7 @@ impl WeatherPanel {
         eprintln!("[Weather] Got {} hourly data points", all_hourly.len());
 
         Ok(WeatherData {
+            location: location_name,
             temp: current.temp_c.clone(),
             feels_like: current.feels_like_c.clone(),
             condition: current.weather_desc[0].value.clone(),
@@ -322,8 +338,10 @@ impl WeatherPanel {
         font: iced::Font,
         font_size: f32,
     ) -> Element<'a, Message> {
-        let weather_data_guard = self.weather_data.lock().unwrap();
-        let is_updating = *self.is_updating.lock().unwrap();
+        // Handle potentially poisoned mutexes gracefully
+        let weather_data_guard = self.weather_data.lock().unwrap_or_else(|e| e.into_inner());
+        let is_updating = *self.is_updating.lock().unwrap_or_else(|e| e.into_inner());
+        let last_error = self.last_error.lock().unwrap_or_else(|e| e.into_inner()).clone();
 
         let content = if let Some(weather_clone) = weather_data_guard.clone() {
             let greeting = Self::get_greeting();
@@ -444,10 +462,55 @@ impl WeatherPanel {
             ]
             .spacing(0)
             
-        } else {
+        } else if is_updating {
             column![
                 container(
                     text("Loading weather...")
+                        .color(theme.color8)
+                        .font(font)
+                        .size(font_size)
+                )
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .width(Length::Fill)
+                .height(Length::Fill)
+            ]
+        } else if let Some(error) = &last_error {
+            // Show error message
+            let error_text = error.clone();
+            column![
+                container(
+                    column![
+                        text("⚠ Weather unavailable")
+                            .color(theme.color1)
+                            .font(font)
+                            .size(font_size),
+                        text("")
+                            .font(font)
+                            .size(font_size * 0.5),
+                        text(error_text)
+                            .color(theme.color8)
+                            .font(font)
+                            .size(font_size * 0.8),
+                        text("")
+                            .font(font)
+                            .size(font_size * 0.5),
+                        text("Check your internet connection")
+                            .color(theme.color8)
+                            .font(font)
+                            .size(font_size * 0.8),
+                    ]
+                    .spacing(5)
+                )
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .width(Length::Fill)
+                .height(Length::Fill)
+            ]
+        } else {
+            column![
+                container(
+                    text("No weather data")
                         .color(theme.color8)
                         .font(font)
                         .size(font_size)
