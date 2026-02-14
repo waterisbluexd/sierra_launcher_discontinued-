@@ -2,12 +2,45 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WallpaperCache {
     pub last_wallpaper: PathBuf,
+}
+
+// Global pre-loaded wallpaper index for instant access
+static GLOBAL_WALLPAPER_INDEX: OnceLock<Arc<Mutex<Option<WallpaperIndex>>>> = OnceLock::new();
+
+/// Get the global wallpaper index (pre-loaded on daemon startup)
+pub fn get_global_index() -> &'static Arc<Mutex<Option<WallpaperIndex>>> {
+    GLOBAL_WALLPAPER_INDEX.get_or_init(|| Arc::new(Mutex::new(None)))
+}
+
+/// Pre-load wallpaper index into global cache (called on daemon startup)
+pub fn preload_wallpaper_index(wallpaper_dir: PathBuf) {
+    let manager = WallpaperManager::new(wallpaper_dir);
+    manager.ensure_cache();
+    
+    if let Some(index) = manager.load_index() {
+        let global = get_global_index();
+        if let Ok(mut guard) = global.lock() {
+            *guard = Some(index);
+            eprintln!("[Wallpaper] ✓ Global index pre-loaded");
+        }
+    }
+}
+
+/// Get cached wallpaper index (instant if pre-loaded)
+pub fn get_cached_index() -> Option<WallpaperIndex> {
+    let global = get_global_index();
+    if let Ok(guard) = global.lock() {
+        guard.clone()
+    } else {
+        None
+    }
 }
 
 #[derive(Debug)]

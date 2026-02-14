@@ -2,7 +2,50 @@ use iced::Color;
 use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex, OnceLock};
 use crate::config::{Config, ThemeConfig};
+
+// Global theme cache to avoid repeated file reads
+static THEME_CACHE: OnceLock<Arc<Mutex<Option<Theme>>>> = OnceLock::new();
+
+/// Get the global theme cache
+fn get_theme_cache() -> &'static Arc<Mutex<Option<Theme>>> {
+    THEME_CACHE.get_or_init(|| Arc::new(Mutex::new(None)))
+}
+
+/// Pre-load theme into cache (called on daemon startup)
+pub fn preload_theme(config: &Config) {
+    let theme = Theme::load_from_config_uncached(config);
+    let cache = get_theme_cache();
+    if let Ok(mut guard) = cache.lock() {
+        *guard = Some(theme);
+        eprintln!("[Theme] ✓ Theme pre-loaded into cache");
+    }
+}
+
+/// Get cached theme or load if not cached
+pub fn get_cached_theme(config: &Config) -> Theme {
+    let cache = get_theme_cache();
+    if let Ok(guard) = cache.lock() {
+        if let Some(ref theme) = *guard {
+            return theme.clone();
+        }
+    }
+    // Not cached, load and cache
+    let theme = Theme::load_from_config_uncached(config);
+    if let Ok(mut guard) = cache.lock() {
+        *guard = Some(theme.clone());
+    }
+    theme
+}
+
+/// Clear theme cache (when pywal colors change)
+pub fn clear_theme_cache() {
+    let cache = get_theme_cache();
+    if let Ok(mut guard) = cache.lock() {
+        *guard = None;
+    }
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct WalColors {
@@ -115,9 +158,14 @@ impl WalColors {
 }
 
 impl Theme {
-    /// Load theme based on config preferences
+    /// Load theme based on config preferences (uses cache if available)
     /// Priority: pywal (if enabled) > custom theme > default
     pub fn load_from_config(config: &Config) -> Self {
+        get_cached_theme(config)
+    }
+    
+    /// Load theme without using cache (for pre-loading)
+    fn load_from_config_uncached(config: &Config) -> Self {
         // If pywal is enabled, try to load it FIRST
         if config.use_pywal {
             if let Ok(wal_colors) = WalColors::load() {

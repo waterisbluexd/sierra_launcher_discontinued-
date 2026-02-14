@@ -15,7 +15,7 @@ use crate::utils::theme::Theme;
 use crate::utils::wallpaper_manager::WallpaperManager;
 use crate::config::Config;
 use crate::panels::search_bar::SearchBar;
-use crate::panels::app_list::AppList;
+use crate::panels::app_list::{AppList, self};
 use crate::panels::mpris_player::MusicPlayer;
 use crate::panels::system::SystemPanel;
 use crate::panels::services::ServicesPanel;
@@ -60,7 +60,16 @@ fn main() -> Result<(), iced_layershell::Error> {
     
     // Initialize background services
     let config = Config::load();
-    let _theme = Theme::load_from_config(&config);
+    
+    // Pre-load theme into cache
+    crate::utils::theme::preload_theme(&config);
+    
+    // Pre-warm app cache immediately on daemon startup (not on first show)
+    thread::spawn(|| {
+        let t = Instant::now();
+        crate::panels::app_list::prewarm_cache();
+        eprintln!("[Background] App cache pre-warmed: {:?}", t.elapsed());
+    });
     
     thread::spawn(|| {
         let t = Instant::now();
@@ -79,9 +88,14 @@ fn main() -> Result<(), iced_layershell::Error> {
         let wp_dir = wallpaper_dir.clone();
         thread::spawn(move || {
             let t = Instant::now();
-            let manager = WallpaperManager::new(wp_dir);
+            let manager = WallpaperManager::new(wp_dir.clone());
             manager.restore_last_wallpaper();
             eprintln!("[Background] Wallpaper restored: {:?}", t.elapsed());
+            
+            // Pre-load wallpaper index for instant panel display
+            let t2 = Instant::now();
+            crate::utils::wallpaper_manager::preload_wallpaper_index(wp_dir);
+            eprintln!("[Background] Wallpaper index pre-loaded: {:?}", t2.elapsed());
         });
     }
     
@@ -120,6 +134,8 @@ struct DaemonState {
     config: Config,
     /// Active launcher windows
     windows: HashMap<Id, Launcher>,
+    /// Pre-created launcher template (cached for instant window creation)
+    cached_launcher: Option<Launcher>,
 }
 
 impl DaemonState {
@@ -130,6 +146,7 @@ impl DaemonState {
             Self {
                 config,
                 windows: HashMap::new(),
+                cached_launcher: None,
             },
             Command::none(),
         )
@@ -143,7 +160,18 @@ impl DaemonState {
         match message {
             Message::WindowClosed(id) => {
                 eprintln!("[Daemon] Window closed: {:?}", id);
-                self.windows.remove(&id);
+                // Cache the launcher for reuse (faster next show)
+                if let Some(launcher) = self.windows.remove(&id) {
+                    // Reset state for next use
+                    let mut cached = launcher;
+                    cached.search_bar.input_value.clear();
+                    cached.clipboard_visible = false;
+                    cached.control_center_visible = false;
+                    cached.is_first_frame = true;
+                    cached.current_panel = Panel::Clock;  // Reset to Clock panel
+                    cached.clipboard_selected_index = 0;  // Reset clipboard selection
+                    self.cached_launcher = Some(cached);
+                }
                 Command::none()
             }
             
@@ -156,9 +184,9 @@ impl DaemonState {
                     return Command::none();
                 }
                 
-                // Create a new launcher window
+                // Create a new launcher window - use cached launcher if available
                 let id = Id::unique();
-                let launcher = self.create_launcher();
+                let launcher = self.cached_launcher.take().unwrap_or_else(|| self.create_launcher());
                 self.windows.insert(id, launcher);
                 
                 // Create new layer shell with on-demand keyboard
@@ -351,7 +379,7 @@ impl DaemonState {
     }
     
     fn subscription(&self) -> iced::Subscription<Message> {
-        // Poll for IPC commands using time-based subscription (works without windows)
+        // Poll for IPC commands at 60fps (16ms) - only when daemon has no windows
         let ipc_poll = iced::time::every(std::time::Duration::from_millis(16))
             .filter_map(|_| {
                 if ipc::poll_show() {
@@ -367,24 +395,32 @@ impl DaemonState {
         // Listen for keyboard events
         let events = iced::event::listen().map(Message::IcedEvent);
         
-        // Frame-based checks for active windows
-        let frames = iced::window::frames().map(|_| Message::CheckColors);
-        let music_refresh = iced::window::frames().map(|_| Message::MusicRefresh);
+        // Use a slower refresh rate for color checks (500ms instead of every frame)
+        let color_check = iced::time::every(std::time::Duration::from_millis(500))
+            .map(|_| Message::CheckColors);
         
-        iced::Subscription::batch(vec![ipc_poll, close_events, events, frames, music_refresh])
+        // Music refresh at 100ms for smooth progress bar
+        let music_refresh = iced::time::every(std::time::Duration::from_millis(100))
+            .map(|_| Message::MusicRefresh);
+        
+        iced::Subscription::batch(vec![ipc_poll, close_events, events, color_check, music_refresh])
     }
     
     fn create_launcher(&self) -> Launcher {
-        let theme = Theme::load_from_config(&self.config);
+        Self::create_launcher_template(&self.config)
+    }
+    
+    fn create_launcher_template(config: &Config) -> Launcher {
+        let theme = Theme::load_from_config(config);
         
         Launcher {
             theme,
             watcher: None,
-            config: self.config.clone(),
+            config: config.clone(),
             search_bar: SearchBar::new(),
             app_list: AppList::new(),
             current_panel: Panel::Clock,
-            weather_panel: WeatherPanel::with_location(self.config.weather_location.clone()),
+            weather_panel: WeatherPanel::with_location(config.weather_location.clone()),
             music_player: MusicPlayer::new(),
             system_panel: SystemPanel::new(),
             services_panel: ServicesPanel::new(),
@@ -393,7 +429,7 @@ impl DaemonState {
             last_pywal_reload: Instant::now(),
             frame_count: 0,
             title_animator: TitleAnimator::new()
-                .with_mode(self.config.get_animation_mode())
+                .with_mode(config.get_animation_mode())
                 .with_speed(80),
             control_center_visible: false,
             clipboard_visible: false,

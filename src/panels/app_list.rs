@@ -28,6 +28,58 @@ static APP_CACHE: OnceLock<Vec<App>> = OnceLock::new();
 // Track loading state
 static LOADING_STATE: OnceLock<Arc<Mutex<LoadingState>>> = OnceLock::new();
 
+/// Pre-warm the app cache on daemon startup for instant first show
+pub fn prewarm_cache() {
+    let state = LOADING_STATE.get_or_init(|| Arc::new(Mutex::new(LoadingState::NotStarted)));
+    
+    let mut state_lock = state.lock().unwrap();
+    if *state_lock != LoadingState::NotStarted {
+        return;
+    }
+    
+    *state_lock = LoadingState::Loading;
+    drop(state_lock);
+    
+    // Load apps synchronously (this is called in background thread)
+    APP_CACHE.get_or_init(|| load_desktop_apps_impl());
+    
+    let state = LOADING_STATE.get().unwrap();
+    *state.lock().unwrap() = LoadingState::Loaded;
+}
+
+/// Internal function to load desktop apps (used by prewarm_cache)
+fn load_desktop_apps_impl() -> Vec<App> {
+    eprintln!("[AppList] Loading desktop applications...");
+    
+    let mut apps: Vec<App> = gio::AppInfo::all()
+        .into_iter()
+        .filter_map(|app| {
+            let desktop = app.downcast::<DesktopAppInfo>().ok()?;
+
+            if !desktop.should_show() {
+                return None;
+            }
+
+            let name = desktop.name().to_string();
+            let name_lower = name.to_lowercase();
+            let description_lower = desktop.description().map(|d| d.to_lowercase());
+
+            Some(App {
+                id: desktop.id()?.to_string(),
+                name,
+                name_lower,
+                description_lower,
+            })
+        })
+        .collect();
+
+    // Sort apps alphabetically
+    apps.sort_unstable_by(|a, b| a.name_lower.cmp(&b.name_lower));
+    
+    eprintln!("[AppList] ✓ Loaded and sorted {} desktop apps", apps.len());
+    apps
+}
+
 #[derive(Debug, Clone, PartialEq)]
 enum LoadingState {
     NotStarted,
@@ -92,7 +144,7 @@ impl AppList {
             let start = std::time::Instant::now();
             
             // This will initialize APP_CACHE
-            APP_CACHE.get_or_init(|| Self::load_desktop_apps());
+            APP_CACHE.get_or_init(|| load_desktop_apps_impl());
             
             // Update state
             let state = LOADING_STATE.get().unwrap();
@@ -132,38 +184,6 @@ impl AppList {
 
     fn all_apps() -> &'static [App] {
         APP_CACHE.get().map_or(&[], |v| v.as_slice())
-    }
-
-    fn load_desktop_apps() -> Vec<App> {
-        eprintln!("[AppList] Loading desktop applications...");
-        
-        let mut apps: Vec<App> = gio::AppInfo::all()
-            .into_iter()
-            .filter_map(|app| {
-                let desktop = app.downcast::<DesktopAppInfo>().ok()?;
-
-                if !desktop.should_show() {
-                    return None;
-                }
-
-                let name = desktop.name().to_string();
-                let name_lower = name.to_lowercase();
-                let description_lower = desktop.description().map(|d| d.to_lowercase());
-
-                Some(App {
-                    id: desktop.id()?.to_string(),
-                    name,
-                    name_lower,
-                    description_lower,
-                })
-            })
-            .collect();
-
-        // Sort apps alphabetically
-        apps.sort_unstable_by(|a, b| a.name_lower.cmp(&b.name_lower));
-        
-        eprintln!("[AppList] ✓ Loaded and sorted {} desktop apps", apps.len());
-        apps
     }
 
     fn filter_apps(&mut self) {

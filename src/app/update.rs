@@ -1,6 +1,5 @@
 use iced::Task as Command;
 use iced::Event;
-use iced::widget::operation::focus;
 use iced::keyboard;
 use keyboard::key::Named;
 use iced::mouse;
@@ -8,7 +7,6 @@ use iced::mouse;
 use crate::app::state::{Launcher, Panel, Direction};
 use crate::app::message::Message;
 use crate::panels::{search_bar, app_list};
-use crate::utils::theme::WalColors;
 use crate::utils::watcher::ColorWatcher; 
 use std::time::{Duration, Instant};
 
@@ -109,7 +107,22 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 
                 // Load wallpaper index synchronously so it's available immediately
                 if launcher.wallpaper_index.is_none() {
-                    if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
+                    // First try the global pre-loaded cache
+                    if let Some(cached_index) = crate::utils::wallpaper_manager::get_cached_index() {
+                        launcher.wallpaper_index = Some(cached_index.clone());
+                        eprintln!("[Wallpaper] ✓ Using pre-loaded global index");
+                        
+                        // Set selected index to last wallpaper
+                        if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
+                            let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
+                            if let (Some(last_wallpaper_path), Some(ref idx)) = (manager.get_last_wallpaper(), &launcher.wallpaper_index) {
+                                if let Some(pos) = idx.wallpapers.iter().position(|e| e.path == last_wallpaper_path) {
+                                    launcher.wallpaper_selected_index = pos;
+                                }
+                            }
+                        }
+                    } else if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
+                        // Fallback: load on demand if not pre-loaded
                         let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
                         
                         // Generate cache if it doesn't exist
@@ -149,10 +162,10 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 if launcher.config.use_pywal {
                     if let Some(ref watcher) = launcher.watcher {
                         if watcher.check_for_changes() {
-                            if let Ok(wal_colors) = WalColors::load() {
-                                launcher.theme = wal_colors.to_theme();
-                                eprintln!("Pywal theme reloaded");
-                            }
+                            // Clear cache and reload theme
+                            crate::utils::theme::clear_theme_cache();
+                            launcher.theme = crate::utils::theme::get_cached_theme(&launcher.config);
+                            eprintln!("Pywal theme reloaded");
                         }
                     }
                 }
@@ -210,7 +223,12 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             }
             
             if launcher.current_panel == Panel::Wallpaper && launcher.wallpaper_index.is_none() {
-                if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
+                // First try the global pre-loaded cache
+                if let Some(cached_index) = crate::utils::wallpaper_manager::get_cached_index() {
+                    launcher.wallpaper_index = Some(cached_index);
+                    eprintln!("[Wallpaper] ✓ Using pre-loaded global index (panel switch)");
+                } else if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
+                    // Fallback: load on demand
                     let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
                     
                     // Generate cache if it doesn't exist
