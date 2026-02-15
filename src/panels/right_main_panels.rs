@@ -122,7 +122,6 @@ pub fn right_main_panels_view<'a>(
                     ..Default::default()
                 })
             } else {
-                // Empty placeholder when clipboard is visible
                 container(text(""))
                     .width(Length::Fill)
                     .height(Length::FillPortion(2))
@@ -132,15 +131,11 @@ pub fn right_main_panels_view<'a>(
                     })
             },
 
-            // ──────────────────────────────
-            // Panel 3 (Input/Search bar) - Hidden when clipboard is visible
-            // ──────────────────────────────
             if !clipboard_visible {
                 container(
                     stack![
                         container(
                             row![
-                                // Search Bar container
                                 container(
                                     search_bar.view(theme, font, font_size).map(Message::SearchBarMessage)
                                 )
@@ -226,7 +221,6 @@ pub fn right_main_panels_view<'a>(
                     ..Default::default()
                 })
             } else {
-                // Empty placeholder when clipboard is visible
                 container(text(""))
                     .width(Length::Fill)
                     .height(Length::Fixed(45.0))
@@ -238,7 +232,6 @@ pub fn right_main_panels_view<'a>(
 
             ].spacing(5),
 
-            // Clipboard panel - only visible when clipboard_visible is true
             if clipboard_visible {
                 clipboard_panel_view(theme, bg_with_alpha, font, font_size, clipboard_selected_index)
             } else {
@@ -248,7 +241,6 @@ pub fn right_main_panels_view<'a>(
                     .into()
             },
             
-            // Control Center (only visible when toggled)
             if control_center_visible {
                 container(
                     column![

@@ -29,7 +29,6 @@ use std::collections::HashMap;
 fn main() -> Result<(), iced_layershell::Error> {
     let start = Instant::now();
     
-    // Check if daemon is already running
     if ipc::is_daemon_running() {
         eprintln!("[Main] Daemon already running, sending SHOW command");
         if let Err(e) = ipc::send_command(ipc::IpcCommand::Show) {
@@ -41,7 +40,6 @@ fn main() -> Result<(), iced_layershell::Error> {
     
     eprintln!("[Main] Starting daemon mode...");
     
-    // Create IPC server
     let ipc_listener = match ipc::create_server() {
         Ok(listener) => listener,
         Err(e) => {
@@ -50,7 +48,6 @@ fn main() -> Result<(), iced_layershell::Error> {
         }
     };
     
-    // Start IPC listener thread
     thread::spawn(move || {
         ipc::listen_for_commands(ipc_listener, |cmd| {
             eprintln!("[IPC] Received {:?}", cmd);
@@ -58,13 +55,10 @@ fn main() -> Result<(), iced_layershell::Error> {
         });
     });
     
-    // Initialize background services
     let config = Config::load();
     
-    // Pre-load theme into cache
     crate::utils::theme::preload_theme(&config);
     
-    // Pre-warm app cache immediately on daemon startup (not on first show)
     thread::spawn(|| {
         let t = Instant::now();
         crate::panels::app_list::prewarm_cache();
@@ -92,7 +86,6 @@ fn main() -> Result<(), iced_layershell::Error> {
             manager.restore_last_wallpaper();
             eprintln!("[Background] Wallpaper restored: {:?}", t.elapsed());
             
-            // Pre-load wallpaper index for instant panel display
             let t2 = Instant::now();
             crate::utils::wallpaper_manager::preload_wallpaper_index(wp_dir);
             eprintln!("[Background] Wallpaper index pre-loaded: {:?}", t2.elapsed());
@@ -108,11 +101,11 @@ fn main() -> Result<(), iced_layershell::Error> {
     .subscription(DaemonState::subscription)
     .settings(Settings {
         layer_settings: LayerShellSettings {
-            size: None,  // No initial window size
+            size: None,
             anchor: Anchor::Bottom,
             keyboard_interactivity: KeyboardInteractivity::OnDemand,
             margin: (0, 0, 4, 0),
-            start_mode: StartMode::Background,  // Start as background daemon
+            start_mode: StartMode::Background,
             ..Default::default()
         },
         ..Default::default()
@@ -128,13 +121,9 @@ fn main() -> Result<(), iced_layershell::Error> {
     Ok(())
 }
 
-/// Daemon state managing multiple windows
 struct DaemonState {
-    /// Configuration
     config: Config,
-    /// Active launcher windows
     windows: HashMap<Id, Launcher>,
-    /// Pre-created launcher template (cached for instant window creation)
     cached_launcher: Option<Launcher>,
 }
 
@@ -160,16 +149,14 @@ impl DaemonState {
         match message {
             Message::WindowClosed(id) => {
                 eprintln!("[Daemon] Window closed: {:?}", id);
-                // Cache the launcher for reuse (faster next show)
                 if let Some(launcher) = self.windows.remove(&id) {
-                    // Reset state for next use
                     let mut cached = launcher;
                     cached.search_bar.input_value.clear();
                     cached.clipboard_visible = false;
                     cached.control_center_visible = false;
                     cached.is_first_frame = true;
-                    cached.current_panel = Panel::Clock;  // Reset to Clock panel
-                    cached.clipboard_selected_index = 0;  // Reset clipboard selection
+                    cached.current_panel = Panel::Clock;
+                    cached.clipboard_selected_index = 0;
                     self.cached_launcher = Some(cached);
                 }
                 Command::none()
@@ -178,27 +165,21 @@ impl DaemonState {
             Message::ShowWindow => {
                 eprintln!("[Daemon] ShowWindow - creating new window");
                 
-                // If a window already exists, don't create another one
                 if !self.windows.is_empty() {
                     eprintln!("[Daemon] Window already exists, skipping creation");
                     return Command::none();
                 }
                 
-                // Create a new launcher window - use cached launcher if available
                 let id = Id::unique();
                 let launcher = self.cached_launcher.take().unwrap_or_else(|| self.create_launcher());
                 self.windows.insert(id, launcher);
                 
-                // Create new layer shell with on-demand keyboard
-                // Use OutputOption::None to show on the current active output (where mouse is)
-                // Use OnDemand keyboard interactivity to avoid system freeze
-                // exclusive_zone: 0 means the window doesn't reserve space and allows click-through when closed
                 Command::done(Message::NewLayerShell {
                     settings: NewLayerShellSettings {
                         size: Some((WINDOW_WIDTH, WINDOW_HEIGHT)),
                         layer: Layer::Overlay,
                         anchor: Anchor::Bottom,
-                        exclusive_zone: Some(0),  // 0 = no reservation, allows proper cleanup
+                        exclusive_zone: Some(0),
                         margin: Some((0, 0, 4, 0)),
                         keyboard_interactivity: KeyboardInteractivity::OnDemand,
                         output_option: OutputOption::None,
@@ -210,7 +191,6 @@ impl DaemonState {
             }
             
             Message::WindowReady => {
-                // Focus the search bar after window is ready
                 if let Some(launcher) = self.windows.values_mut().next() {
                     eprintln!("[Daemon] Window ready - focusing search bar");
                     return iced::widget::operation::focus(launcher.search_bar.input_id.clone());
@@ -221,12 +201,10 @@ impl DaemonState {
             Message::Close(id) => {
                 eprintln!("[Daemon] Closing window: {:?}", id);
                 self.windows.remove(&id);
-                // Use iced's built-in window close
                 iced::window::close(id)
             }
             
             Message::AppLaunched => {
-                // App was launched, close the window
                 if let Some((&id, launcher)) = self.windows.iter_mut().next() {
                     eprintln!("[Daemon] App launched - closing window {:?}", id);
                     launcher.search_bar.input_value.clear();
@@ -239,7 +217,6 @@ impl DaemonState {
                 key: iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape), 
                 .. 
             })) => {
-                // Close the first active window on ESC
                 if let Some((&id, launcher)) = self.windows.iter_mut().next() {
                     eprintln!("[Input] ESC pressed - closing window {:?}", id);
                     launcher.search_bar.input_value.clear();
@@ -254,7 +231,6 @@ impl DaemonState {
                 key: iced::keyboard::Key::Named(iced::keyboard::key::Named::Enter), 
                 .. 
             })) => {
-                // Launch selected app and close window
                 if let Some((id, launcher)) = self.windows.iter_mut().next() {
                     eprintln!("[Input] Enter pressed - launching app");
                     let _ = launcher.app_list.update(panels::app_list::Message::LaunchSelected);
@@ -270,16 +246,12 @@ impl DaemonState {
                 ..
             })) => {
                 eprintln!("[Input] Key pressed: {:?}, modifiers: {:?}", named, modifiers);
-                // Handle arrow keys for panel cycling
                 if let Some(launcher) = self.windows.values_mut().next() {
                     match named {
                         iced::keyboard::key::Named::ArrowLeft => {
                             if modifiers.shift() {
-                                // Shift+Left: Toggle clipboard
                                 launcher.clipboard_visible = !launcher.clipboard_visible;
                             } else {
-                                // Plain Left: Cycle panel left
-                                // Order: Clock -> Weather -> Music -> Wallpaper -> Services -> System
                                 eprintln!("[Input] Left - cycling panel left");
                                 launcher.current_panel = match launcher.current_panel {
                                     Panel::Clock => Panel::System,
@@ -293,11 +265,8 @@ impl DaemonState {
                         }
                         iced::keyboard::key::Named::ArrowRight => {
                             if modifiers.shift() {
-                                // Shift+Right: Toggle clipboard
                                 launcher.clipboard_visible = !launcher.clipboard_visible;
                             } else {
-                                // Plain Right: Cycle panel right
-                                // Order: Clock -> Weather -> Music -> Wallpaper -> Services -> System
                                 eprintln!("[Input] Right - cycling panel right");
                                 launcher.current_panel = match launcher.current_panel {
                                     Panel::Clock => Panel::Weather,
@@ -331,7 +300,6 @@ impl DaemonState {
                 Command::none()
             }
             
-            // Handle Ctrl+D for clipboard deletion
             Message::IcedEvent(iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { 
                 key: iced::keyboard::Key::Character(c), 
                 modifiers,
@@ -340,7 +308,6 @@ impl DaemonState {
                 if let Some(launcher) = self.windows.values_mut().next() {
                     if launcher.clipboard_visible {
                         eprintln!("[Input] Ctrl+D - deleting clipboard entry");
-                        // Delete clipboard entry directly
                         let items = crate::utils::data::search_items("");
                         if !items.is_empty() && launcher.clipboard_selected_index < items.len() {
                             crate::utils::data::delete_item(launcher.clipboard_selected_index);
@@ -358,9 +325,7 @@ impl DaemonState {
             
             Message::IcedEvent(_) => Command::none(),
             
-            // Route other messages to active windows
             other => {
-                // Send to all active windows
                 let mut commands = Vec::new();
                 for launcher in self.windows.values_mut() {
                     commands.push(app::update::update(launcher, other.clone()));
@@ -379,7 +344,6 @@ impl DaemonState {
     }
     
     fn subscription(&self) -> iced::Subscription<Message> {
-        // Poll for IPC commands at 60fps (16ms) - only when daemon has no windows
         let ipc_poll = iced::time::every(std::time::Duration::from_millis(16))
             .filter_map(|_| {
                 if ipc::poll_show() {
@@ -389,17 +353,12 @@ impl DaemonState {
                 }
             });
         
-        // Listen for window close events
         let close_events = iced::window::close_events().map(Message::WindowClosed);
-        
-        // Listen for keyboard events
         let events = iced::event::listen().map(Message::IcedEvent);
         
-        // Use a slower refresh rate for color checks (500ms instead of every frame)
         let color_check = iced::time::every(std::time::Duration::from_millis(500))
             .map(|_| Message::CheckColors);
         
-        // Music refresh at 100ms for smooth progress bar
         let music_refresh = iced::time::every(std::time::Duration::from_millis(100))
             .map(|_| Message::MusicRefresh);
         

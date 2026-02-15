@@ -41,14 +41,13 @@ pub struct ServicesPanel {
     
     status_cache: Arc<Mutex<ServiceStatus>>,
     refresh_requested: Arc<Mutex<bool>>,
-    values_cache: Arc<Mutex<(f32, f32, bool)>>, // (volume, brightness, muted)
+    values_cache: Arc<Mutex<(f32, f32, bool)>>,
     last_volume_update: Instant,
     last_brightness_update: Instant,
 }
 
 impl ServicesPanel {
     pub fn new() -> Self {
-        // Fetch actual values from system - these should be fast
         let volume_value = system_services::get_volume().unwrap_or(50.0);
         let brightness_value = system_services::get_brightness().unwrap_or(50.0);
         let is_muted = system_services::get_mute_state();
@@ -60,7 +59,6 @@ impl ServicesPanel {
         let cache_clone = Arc::clone(&status_cache);
         let refresh_clone = Arc::clone(&refresh_requested);
         
-        // Background thread for status updates
         std::thread::spawn(move || {
             loop {
                 let should_refresh = {
@@ -73,7 +71,6 @@ impl ServicesPanel {
                     }
                 };
                 
-                // Fetch wifi/bluetooth status
                 if should_refresh {
                     let (wifi_enabled, wifi_name) = system_services::fetch_wifi_status();
                     let (bt_enabled, bt_name) = system_services::fetch_bluetooth_status();
@@ -109,23 +106,19 @@ impl ServicesPanel {
     }
 
     #[allow(dead_code)]
-    /// Get cached volume value (non-blocking)
     pub fn get_volume(&self) -> f32 {
         self.values_cache.lock().unwrap().0
     }
 
     #[allow(dead_code)]
-    /// Get cached brightness value (non-blocking)
     pub fn get_brightness(&self) -> f32 {
         self.values_cache.lock().unwrap().1
     }
 
-    /// Get cached mute state (non-blocking)
     pub fn get_is_muted(&self) -> bool {
         self.values_cache.lock().unwrap().2
     }
 
-    /// Set mute state (updates cache immediately)
     pub fn set_muted(&mut self, muted: bool) {
         self.is_muted = muted;
         if let Ok(mut values) = self.values_cache.lock() {
@@ -194,7 +187,6 @@ impl ServicesPanel {
         });
     }
 
-    // Getter methods to access cached values without blocking
     pub fn wifi_enabled(&self) -> bool {
         self.status_cache.lock().map(|s| s.wifi_enabled).unwrap_or(false)
     }
@@ -462,7 +454,7 @@ impl ServicesPanel {
                             }),
                         )
                         .width(Length::Fixed(45.0))
-                        .height(Length::Fill)
+                        .height(Length::Fill),
                     ].spacing(10)
                 )
                 .width(Length::Fill)
@@ -496,20 +488,21 @@ impl ServicesPanel {
                                         }
                                     } else {
                                         match status {
-                                                                                        iced::widget::button::Status::Hovered => button::Style {
-                                                                                             background: Some(if bt_enabled {
-                                                                                                 let mut c = current_bt_bg_color; c.a = 0.9; c.into()
-                                                                                             } else {
-                                                                                                 let mut c = active_accent; c.a = 0.1; c.into()
-                                                                                             }),
-                                                                                             border: Border {
-                                                                                                 color: active_accent,
-                                                                                                 width: 2.0,
-                                                                                                 radius: 0.0.into(),
-                                                                                             },
-                                                                                             text_color: current_bt_text_color,
-                                                                                             ..Default::default()
-                                                                                         },                                            iced::widget::button::Status::Pressed => button::Style {
+                                            iced::widget::button::Status::Hovered => button::Style {
+                                                background: Some(if bt_enabled {
+                                                    let mut c = current_bt_bg_color; c.a = 0.9; c.into()
+                                                } else {
+                                                    let mut c = active_accent; c.a = 0.1; c.into()
+                                                }),
+                                                border: Border {
+                                                    color: active_accent,
+                                                    width: 2.0,
+                                                    radius: 0.0.into(),
+                                                },
+                                                text_color: current_bt_text_color,
+                                                ..Default::default()
+                                            },
+                                            iced::widget::button::Status::Pressed => button::Style {
                                                 background: Some(current_bt_active_accent.into()),
                                                 border: Border { color: current_bt_active_accent, width: 2.0, radius: 0.0.into() },
                                                 text_color: theme.color0,

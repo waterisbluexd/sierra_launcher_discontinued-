@@ -1,5 +1,3 @@
-//! Clipboard history data storage and search with persistent caching.
-
 use super::item::{ClipboardContent, ClipboardItem};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -11,7 +9,6 @@ use std::path::PathBuf;
 const CACHE_FILE: &str = ".cache/sierra/clipboard.cache";
 const MAX_HISTORY: usize = 50;
 
-/// Global clipboard history storage.
 static CLIPBOARD_HISTORY: RwLock<Option<VecDeque<ClipboardItem>>> = RwLock::new(None);
 
 fn get_cache_path() -> PathBuf {
@@ -45,7 +42,6 @@ fn save_to_cache(history: &VecDeque<ClipboardItem>) {
     }
 }
 
-/// Initialize the clipboard history storage.
 pub fn init() {
     let mut history = CLIPBOARD_HISTORY.write().unwrap();
     if history.is_none() {
@@ -53,13 +49,10 @@ pub fn init() {
     }
 }
 
-/// Add a new item to clipboard history.
-/// If the item is identical to the most recent one, it won't be added.
 pub fn add_item(content: ClipboardContent) {
     let mut history = CLIPBOARD_HISTORY.write().unwrap();
     let history = history.as_mut().expect("Clipboard history not initialized");
 
-    // Don't add duplicate consecutive items
     if let Some(last) = history.front() {
         if is_same_content(&last.content, &content) {
             return;
@@ -69,12 +62,10 @@ pub fn add_item(content: ClipboardContent) {
     let item = ClipboardItem::new(content);
     history.push_front(item);
     
-    // Enforce max history limit
     if history.len() > MAX_HISTORY {
         history.truncate(MAX_HISTORY);
     }
     
-    // Save to cache only every 5 items to reduce I/O
     static SAVE_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let count = SAVE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     
@@ -82,7 +73,7 @@ pub fn add_item(content: ClipboardContent) {
         save_to_cache(history);
     }
 }
-/// Check if two clipboard contents are the same.
+
 fn is_same_content(a: &ClipboardContent, b: &ClipboardContent) -> bool {
     match (a, b) {
         (ClipboardContent::Text(a), ClipboardContent::Text(b)) => a == b,
@@ -101,7 +92,6 @@ fn is_same_content(a: &ClipboardContent, b: &ClipboardContent) -> bool {
     }
 }
 
-/// Get all clipboard items, optionally filtered by a search query.
 pub fn search_items(query: &str) -> Vec<ClipboardItem> {
     let history = CLIPBOARD_HISTORY.read().unwrap();
     let history = history.as_ref().expect("Clipboard history not initialized");
@@ -134,13 +124,11 @@ pub fn search_items(query: &str) -> Vec<ClipboardItem> {
     scored.into_iter().map(|(item, _)| item).collect()
 }
 
-/// Get the total number of items in history.
 pub fn item_count() -> usize {
     let history = CLIPBOARD_HISTORY.read().unwrap();
     history.as_ref().map(|h| h.len()).unwrap_or(0)
 }
 
-/// Delete item at specific index
 pub fn delete_item(index: usize) -> bool {
     let mut history = CLIPBOARD_HISTORY.write().unwrap();
     let history = history.as_mut().expect("Clipboard history not initialized");

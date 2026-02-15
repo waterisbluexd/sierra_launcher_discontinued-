@@ -9,11 +9,11 @@ use std::thread;
 use std::time::{Duration, SystemTime};
 
 const CACHE_FILE: &str = ".cache/sierra/weather.cache";
-const CACHE_VALIDITY_SECS: u64 = 1800; // 30 minutes (reduced for better accuracy)
+const CACHE_VALIDITY_SECS: u64 = 1800;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherData {
-    location: String,  // Store the location this data was fetched for
+    location: String,
     temp: String,
     feels_like: String,
     condition: String,
@@ -93,13 +93,10 @@ impl WeatherPanel {
         let is_updating = Arc::new(Mutex::new(false));
         let last_error = Arc::new(Mutex::new(None));
         
-        // Normalize location for comparison
         let location_key = location.clone().unwrap_or_else(|| "auto".to_string());
         let location_normalized = location_key.split(',').next().unwrap_or(&location_key).trim().to_lowercase();
         
-        // Try to load from cache IMMEDIATELY (synchronous, fast)
         if let Some(cached) = Self::load_from_cache() {
-            // Check if cached location matches requested location
             let cached_location_normalized = cached.location.split(',').next().unwrap_or(&cached.location).trim().to_lowercase();
             let location_matches = cached_location_normalized == location_normalized;
             
@@ -107,7 +104,6 @@ impl WeatherPanel {
                 eprintln!("[Weather] ✓ Loaded cached weather data for: {}", cached.location);
                 *weather_data.lock().unwrap_or_else(|e| e.into_inner()) = Some(cached.clone());
                 
-                // Check if cache is still fresh
                 if let Ok(age) = SystemTime::now().duration_since(cached.cached_at) {
                     if age.as_secs() < CACHE_VALIDITY_SECS {
                         eprintln!("[Weather] ✓ Cache is fresh ({} sec old), skipping fetch", age.as_secs());
@@ -123,7 +119,6 @@ impl WeatherPanel {
             eprintln!("[Weather] No cache found, fetching weather data...");
         }
         
-        // Cache is stale, missing, or location mismatch - fetch in background (non-blocking)
         let weather_clone = Arc::clone(&weather_data);
         let updating_clone = Arc::clone(&is_updating);
         let error_clone = Arc::clone(&last_error);
@@ -131,7 +126,6 @@ impl WeatherPanel {
         *is_updating.lock().unwrap_or_else(|e| e.into_inner()) = true;
         
         thread::spawn(move || {
-            // Set a timeout - if it takes too long, give up
             let result = std::panic::catch_unwind(|| {
                 match Self::fetch_weather_data(&location) {
                     Ok(new_data) => {
@@ -215,7 +209,6 @@ impl WeatherPanel {
     }
 
     fn fetch_weather_data(location: &Option<String>) -> Result<WeatherData, Box<dyn std::error::Error>> {
-        // Build URL with location - wttr.in auto-detects location by IP if no location specified
         let (url, location_name) = if let Some(loc) = location {
             eprintln!("[Weather] Using configured location: {}", loc);
             let simple_loc = loc.split(',').next().unwrap_or(loc).trim();
@@ -227,7 +220,6 @@ impl WeatherPanel {
         
         eprintln!("[Weather] Fetching from: {}", url);
         
-        // Use ureq for simple blocking HTTP request with timeout
         let response = ureq::AgentBuilder::new()
             .timeout(Duration::from_secs(20))
             .build()
@@ -239,7 +231,6 @@ impl WeatherPanel {
 
         let current = &weather_resp.current_condition[0];
         
-        // Collect all hourly data from all weather days
         let mut all_hourly: Vec<HourlyData> = Vec::new();
         for day in &weather_resp.weather {
             for h in &day.hourly {
@@ -268,19 +259,15 @@ impl WeatherPanel {
     }
 
     fn format_hourly_forecast(hourly: &[HourlyData]) -> Vec<String> {
-        // Time slots in 3-hour intervals (wttr.in format: "0", "300", "600", etc.)
         const TIME_SLOTS: [&str; 8] = ["0", "300", "600", "900", "1200", "1500", "1800", "2100"];
         const TIME_LABELS: [&str; 8] = ["12am", "3am", "6am", "9am", "12pm", "3pm", "6pm", "9pm"];
         
         let now = Local::now();
         let current_hour = now.hour();
-        
-        // Find the current 3-hour slot (0-7)
         let current_slot = (current_hour / 3) as usize;
         
         let mut lines = Vec::with_capacity(4);
         
-        // Header line - show next 6 time slots starting from current
         let mut header = String::with_capacity(50);
         for i in 0..6 {
             let slot_idx = (current_slot + i) % 8;
@@ -288,11 +275,9 @@ impl WeatherPanel {
         }
         lines.push(header);
         
-        // Temperature line
         let mut temp_line = String::with_capacity(50);
         for i in 0..6 {
             let slot_idx = (current_slot + i) % 8;
-            // Find matching hour data from today's forecast
             let hour_data = hourly.iter().find(|h| h.time == TIME_SLOTS[slot_idx]);
             if let Some(data) = hour_data {
                 temp_line.push_str(&format!("{:>7}", format!("{}°", data.temp_c)));
@@ -302,7 +287,6 @@ impl WeatherPanel {
         }
         lines.push(temp_line);
         
-        // Wind line
         let mut wind_line = String::with_capacity(50);
         for i in 0..6 {
             let slot_idx = (current_slot + i) % 8;
@@ -315,7 +299,6 @@ impl WeatherPanel {
         }
         lines.push(wind_line);
         
-        // Precipitation line
         let mut precip_line = String::with_capacity(50);
         for i in 0..6 {
             let slot_idx = (current_slot + i) % 8;
@@ -338,7 +321,6 @@ impl WeatherPanel {
         font: iced::Font,
         font_size: f32,
     ) -> Element<'a, Message> {
-        // Handle potentially poisoned mutexes gracefully
         let weather_data_guard = self.weather_data.lock().unwrap_or_else(|e| e.into_inner());
         let is_updating = *self.is_updating.lock().unwrap_or_else(|e| e.into_inner());
         let last_error = self.last_error.lock().unwrap_or_else(|e| e.into_inner()).clone();
@@ -476,7 +458,6 @@ impl WeatherPanel {
                 .height(Length::Fill)
             ]
         } else if let Some(error) = &last_error {
-            // Show error message
             let error_text = error.clone();
             column![
                 container(

@@ -36,7 +36,6 @@ pub fn music_panel_view<'a>(
                                 .height(Length::Shrink)
                                 .padding(iced::padding::top(8).left(15).bottom(25)),
                                 
-                                // Song name (big)
                                 container(
                                     text(&music_state.song_name)
                                         .color(theme.color1)
@@ -47,7 +46,6 @@ pub fn music_panel_view<'a>(
                                 .center_x(Length::Fill)
                                 .padding(iced::padding::bottom(11)),
                                 
-                                // Artist name (small)
                                 container(
                                     text(&music_state.artist_name)
                                         .color(Color::from_rgba(
@@ -63,15 +61,12 @@ pub fn music_panel_view<'a>(
                                 .center_x(Length::Fill)
                                 .padding(iced::padding::bottom(15)),
                                 
-                                // Progress bar with time stamps (3 columns)
                                 row![
-                                    // Column 1: Current timestamp
                                     text(MusicPlayer::format_time(music_state.current_time))
                                         .color(theme.color6)
                                         .font(font)
                                         .size(font_size),
                                     
-                                    // Column 2: Progress slider - STYLED LIKE IMAGE
                                     slider(
                                         0.0..=music_state.total_time.max(1.0),
                                         music_state.current_time,
@@ -83,23 +78,23 @@ pub fn music_panel_view<'a>(
                                         slider::Style {
                                             rail: slider::Rail {
                                                 backgrounds: (
-                                                    Background::Color(theme.color4),  // Filled portion
+                                                    Background::Color(theme.color4),
                                                     Background::Color(Color::from_rgba(
                                                         theme.color6.r,
                                                         theme.color6.g,
                                                         theme.color6.b,
                                                         0.0
-                                                    )), // Unfilled portion
+                                                    )),
                                                 ),
-                                                width: 20.0,  // Thick rectangular bar
+                                                width: 20.0,
                                                 border: Border {
-                                                    radius: 0.0.into(),  // Sharp corners
+                                                    radius: 0.0.into(),
                                                     ..Default::default()
                                                 },
                                             },
                                             handle: slider::Handle {
                                                 shape: slider::HandleShape::Rectangle {
-                                                    width: 0,  // Hide the handle
+                                                    width: 0,
                                                     border_radius: 0.0.into(),
                                                 },
                                                 background: Background::Color(Color::TRANSPARENT),
@@ -109,7 +104,6 @@ pub fn music_panel_view<'a>(
                                         }
                                     }),
                                     
-                                    // Column 3: End timestamp
                                     text(MusicPlayer::format_time(music_state.total_time))
                                         .color(theme.color6)
                                         .font(font)
@@ -120,10 +114,8 @@ pub fn music_panel_view<'a>(
                                 .align_y(Alignment::Center)
                                 .padding(iced::padding::top(8).left(15).right(15)),
                                 
-                                // Control buttons - REDUCED BOTTOM PADDING
                                 container(
                                     row![
-                                        // Previous button
                                         button(
                                             container(
                                                 text("⏮")
@@ -147,7 +139,6 @@ pub fn music_panel_view<'a>(
                                             ..Default::default()
                                         }),
                                         
-                                        // Play/Pause button
                                         button(
                                             container(
                                                 text(play_pause_icon)
@@ -171,7 +162,6 @@ pub fn music_panel_view<'a>(
                                             ..Default::default()
                                         }),
                                         
-                                        // Next button
                                         button(
                                             container(
                                                 text("⏭")
@@ -205,7 +195,6 @@ pub fn music_panel_view<'a>(
                             .width(Length::Fill)
                             .align_x(Alignment::Center)
                         } else {
-                            // No player available - show placeholder
                             column![
                                 container(text(""))
                                     .height(Length::Fill),

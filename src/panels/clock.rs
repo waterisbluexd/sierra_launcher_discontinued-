@@ -11,7 +11,7 @@ pub fn clock_panel_view<'a>(
     font_size: f32,
 ) -> Element<'a, Message> {
     let now = Local::now();
-    let time_str = now.format("%H:%M").to_string(); // 24-hour format
+    let time_str = now.format("%H:%M").to_string();
     let date_str = now.format("%A, %B %d").to_string();
     let clock_content = column![
         text(time_str)
@@ -52,7 +52,6 @@ pub fn clock_panel_view<'a>(
                 .padding(iced::padding::top(15))
                 .width(Length::Fill)
                 .height(Length::Fill),
-                // Floating title label
                 container(
                     container(
                         text(" Clock ")

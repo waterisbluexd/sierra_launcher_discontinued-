@@ -10,10 +10,8 @@ pub fn get_volume() -> Option<f32> {
 }
 
 pub fn set_volume_cmd(value: u8) {
-    // Resume sink if suspended - CRITICAL for post-sleep reliability
     if run_pactl(&["suspend-sink", "@DEFAULT_SINK@", "0"]).is_err() {
         eprintln!("[Audio] Warning: Failed to resume sink");
-        // Continue anyway - sink might not have been suspended
     }
     
     let volume_str = format!("{}%", value);
@@ -116,7 +114,7 @@ pub fn fetch_bluetooth_status() -> (bool, String) {
                         if parts.len() >= 3 {
                             return (true, parts[2..].join(" "));
                         }
-                    }//asdas
+                    }
                 }
             }
 

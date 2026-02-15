@@ -9,8 +9,6 @@ Type=simple
 ExecStart=/usr/bin/sierra-launcher-daemon
 Restart=on-failure
 RestartSec=2s
-
-# Clean up socket on exit
 ExecStopPost=/bin/rm -f %t/sierra-launcher.sock
 
 [Install]

@@ -24,11 +24,8 @@ pub struct App {
 }
 
 static APP_CACHE: OnceLock<Vec<App>> = OnceLock::new();
-
-// Track loading state
 static LOADING_STATE: OnceLock<Arc<Mutex<LoadingState>>> = OnceLock::new();
 
-/// Pre-warm the app cache on daemon startup for instant first show
 pub fn prewarm_cache() {
     let state = LOADING_STATE.get_or_init(|| Arc::new(Mutex::new(LoadingState::NotStarted)));
     
@@ -40,14 +37,12 @@ pub fn prewarm_cache() {
     *state_lock = LoadingState::Loading;
     drop(state_lock);
     
-    // Load apps synchronously (this is called in background thread)
     APP_CACHE.get_or_init(|| load_desktop_apps_impl());
     
     let state = LOADING_STATE.get().unwrap();
     *state.lock().unwrap() = LoadingState::Loaded;
 }
 
-/// Internal function to load desktop apps (used by prewarm_cache)
 fn load_desktop_apps_impl() -> Vec<App> {
     eprintln!("[AppList] Loading desktop applications...");
     
@@ -73,7 +68,6 @@ fn load_desktop_apps_impl() -> Vec<App> {
         })
         .collect();
 
-    // Sort apps alphabetically
     apps.sort_unstable_by(|a, b| a.name_lower.cmp(&b.name_lower));
     
     eprintln!("[AppList] ✓ Loaded and sorted {} desktop apps", apps.len());
@@ -99,31 +93,26 @@ pub struct AppList {
 
 impl AppList {
     pub fn new() -> Self {
-        // Initialize loading state tracker
         LOADING_STATE.get_or_init(|| Arc::new(Mutex::new(LoadingState::NotStarted)));
         
         Self {
-            filtered_indices: Vec::new(), // Start empty
+            filtered_indices: Vec::new(),
             search_query: String::new(),
             selected_index: 0,
             scroll_id: iced::widget::Id::unique(),
             window_size: 17,
             window_start: 0,
-            is_loading: false, // Not loading yet - wait for start_loading() call
+            is_loading: false,
         }
     }
 
-    /// Trigger lazy loading of apps in background thread
-    /// Call this AFTER the first frame is rendered
     pub fn start_loading(&mut self) {
         let state = LOADING_STATE.get().unwrap().clone();
         let mut state_lock = state.lock().unwrap();
         
-        // Only start loading once
         if *state_lock != LoadingState::NotStarted {
             drop(state_lock);
             
-            // If already loaded, populate immediately
             if APP_CACHE.get().is_some() {
                 let total_apps = Self::all_apps().len();
                 self.filtered_indices = (0..total_apps).collect();
@@ -139,14 +128,9 @@ impl AppList {
         self.is_loading = true;
         eprintln!("[AppList] Starting lazy app loading...");
         
-        // Load apps in background thread
         thread::spawn(move || {
             let start = std::time::Instant::now();
-            
-            // This will initialize APP_CACHE
             APP_CACHE.get_or_init(|| load_desktop_apps_impl());
-            
-            // Update state
             let state = LOADING_STATE.get().unwrap();
             *state.lock().unwrap() = LoadingState::Loaded;
             
@@ -157,8 +141,6 @@ impl AppList {
         });
     }
 
-    /// Check if apps are loaded and update filtered list
-    /// Returns true if apps just finished loading
     pub fn check_loaded(&mut self) -> bool {
         if !self.is_loading {
             return false;
@@ -169,8 +151,6 @@ impl AppList {
         
         if *state_lock == LoadingState::Loaded {
             drop(state_lock);
-            
-            // Apps are now available - populate the list
             let total_apps = Self::all_apps().len();
             self.filtered_indices = (0..total_apps).collect();
             self.is_loading = false;
@@ -282,7 +262,6 @@ impl AppList {
     ) -> Element<'a, Message> {
         let mut items = column![].spacing(1);
         
-        // Show loading message if apps aren't loaded yet
         if self.is_loading || Self::all_apps().is_empty() {
             items = items.push(
                 container(
@@ -296,7 +275,6 @@ impl AppList {
                 .center_x(Length::Fill)
             );
         } else if self.filtered_indices.is_empty() {
-            // Show "no results" if search yields nothing
             items = items.push(
                 container(
                     text(if self.search_query.is_empty() {
@@ -313,7 +291,6 @@ impl AppList {
                 .center_x(Length::Fill)
             );
         } else {
-            // Normal app list rendering
             let window_end = (self.window_start + self.window_size).min(self.filtered_indices.len());
             let apps = Self::all_apps();
 

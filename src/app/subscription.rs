@@ -7,7 +7,6 @@ pub fn subscription() -> Subscription<Message> {
     let frames = window::frames().map(|_| Message::CheckColors);
     let music_refresh = window::frames().map(|_| Message::MusicRefresh);
     
-    // Poll IPC channel for show events from daemon socket
     let ipc_poll = window::frames()
         .filter_map(|_| {
             if ipc::poll_show() {

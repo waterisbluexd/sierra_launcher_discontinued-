@@ -11,15 +11,12 @@ pub struct WallpaperCache {
     pub last_wallpaper: PathBuf,
 }
 
-// Global pre-loaded wallpaper index for instant access
 static GLOBAL_WALLPAPER_INDEX: OnceLock<Arc<Mutex<Option<WallpaperIndex>>>> = OnceLock::new();
 
-/// Get the global wallpaper index (pre-loaded on daemon startup)
 pub fn get_global_index() -> &'static Arc<Mutex<Option<WallpaperIndex>>> {
     GLOBAL_WALLPAPER_INDEX.get_or_init(|| Arc::new(Mutex::new(None)))
 }
 
-/// Pre-load wallpaper index into global cache (called on daemon startup)
 pub fn preload_wallpaper_index(wallpaper_dir: PathBuf) {
     let manager = WallpaperManager::new(wallpaper_dir);
     manager.ensure_cache();
@@ -33,7 +30,6 @@ pub fn preload_wallpaper_index(wallpaper_dir: PathBuf) {
     }
 }
 
-/// Get cached wallpaper index (instant if pre-loaded)
 pub fn get_cached_index() -> Option<WallpaperIndex> {
     let global = get_global_index();
     if let Ok(guard) = global.lock() {
@@ -80,26 +76,25 @@ impl WallpaperManager {
         }
     }
 
-    /// ✅ FIXED: Restore last wallpaper WITHOUT killing existing gslapper (prevents flicker)
     pub fn restore_last_wallpaper(&self) {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        
         if let Some(last_wallpaper_path) = self.get_last_wallpaper() {
             if !last_wallpaper_path.exists() {
                 eprintln!("[Wallpaper] Last wallpaper no longer exists: {:?}", last_wallpaper_path);
                 return;
             }
 
-            // Check if gslapper is already running with this wallpaper
             if let Ok(output) = Command::new("pgrep").arg("-a").arg("gslapper").output() {
                 if let Ok(stdout) = String::from_utf8(output.stdout) {
                     let wallpaper_str = last_wallpaper_path.to_string_lossy();
                     if stdout.contains(wallpaper_str.as_ref()) {
                         eprintln!("[Wallpaper] ✓ Already running: {:?}", last_wallpaper_path);
-                        return; // Already running with correct wallpaper, don't restart
+                        return;
                     }
                 }
             }
 
-            // Determine wallpaper type
             let ext = last_wallpaper_path
                 .extension()
                 .and_then(|e| e.to_str())
@@ -115,7 +110,6 @@ impl WallpaperManager {
                 }
             };
 
-            // Create entry manually
             let entry = WallpaperEntry {
                 name: last_wallpaper_path
                     .file_name()
@@ -129,18 +123,15 @@ impl WallpaperManager {
 
             eprintln!("[Wallpaper] ✓ Restoring last wallpaper: {:?}", entry.name);
             
-            // FIX: Use set_wallpaper_gentle for restoration (doesn't kill existing)
             self.set_wallpaper_gentle(&entry);
         } else {
             eprintln!("[Wallpaper] No last wallpaper found in cache");
         }
     }
 
-    /// ✅ NEW: Gentle wallpaper setting (checks if already running first)
     fn set_wallpaper_gentle(&self, entry: &WallpaperEntry) {
         let wallpaper_path = entry.path.to_string_lossy();
 
-        // Check if already running
         if let Ok(output) = Command::new("pgrep").arg("-a").arg("gslapper").output() {
             if let Ok(stdout) = String::from_utf8(output.stdout) {
                 if stdout.contains(wallpaper_path.as_ref()) {
@@ -150,7 +141,6 @@ impl WallpaperManager {
             }
         }
 
-        // Kill existing gslapper only if different wallpaper
         let _ = Command::new("pkill").arg("-9").arg("gslapper").output();
         std::thread::sleep(std::time::Duration::from_millis(50));
 
@@ -169,7 +159,6 @@ impl WallpaperManager {
         if wal_path.exists() {
             let wp = wal_path.clone();
             eprintln!("[Pywal] Queued color update from: {:?}", wp);
-            // Run pywal in background to avoid blocking UI
             std::thread::spawn(move || {
                 let _ = Command::new("wal")
                     .arg("-i")
@@ -182,7 +171,6 @@ impl WallpaperManager {
         }
     }
 
-    /// OPTIMIZED: Only generate cache if it doesn't exist or is invalid
     pub fn ensure_cache(&self) {
         if self.load_index().is_some() {
             return;
@@ -306,7 +294,6 @@ impl WallpaperManager {
     }
 
     pub fn set_wallpaper(&self, entry: &WallpaperEntry) {
-        // ALWAYS kill when explicitly setting a new wallpaper
         let _ = Command::new("pkill").arg("-9").arg("gslapper").output();
         std::thread::sleep(std::time::Duration::from_millis(100));
 
@@ -327,7 +314,6 @@ impl WallpaperManager {
         if wal_path.exists() {
             let wp = wal_path.clone();
             eprintln!("[Pywal] Queued color update from: {:?}", wp);
-            // Run pywal in background to avoid blocking UI
             std::thread::spawn(move || {
                 let _ = Command::new("wal")
                     .arg("-i")

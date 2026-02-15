@@ -1,16 +1,9 @@
 #!/bin/bash
-# Sierra Launcher - Complete Automated Installation Script
-# Handles all dependencies, builds, and configures everything automatically
-
 set -e
 
-# ─────────────────────────────────────────────
-#   Color Palette
-# ─────────────────────────────────────────────
 RESET='\033[0m'
 BOLD='\033[1m'
 DIM='\033[2m'
-
 WHITE='\033[97m'
 GRAY='\033[90m'
 CYAN='\033[96m'
@@ -19,9 +12,6 @@ YELLOW='\033[93m'
 RED='\033[91m'
 BLUE='\033[94m'
 
-# ─────────────────────────────────────────────
-#   Helpers
-# ─────────────────────────────────────────────
 header() {
     echo ""
     echo -e "  ${BOLD}${CYAN}$1${RESET}"
@@ -48,9 +38,6 @@ info() {
     echo -e "      ${DIM}${GRAY}$1${RESET}"
 }
 
-# ─────────────────────────────────────────────
-#   Detect Distribution
-# ─────────────────────────────────────────────
 detect_distro() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
@@ -62,9 +49,6 @@ detect_distro() {
     fi
 }
 
-# ─────────────────────────────────────────────
-#   Install System Dependencies
-# ─────────────────────────────────────────────
 install_system_deps() {
     header "System Dependencies"
     
@@ -75,7 +59,6 @@ install_system_deps() {
             info "Detected: $PRETTY_NAME"
             step "Installing dependencies via pacman..."
             
-            # Core dependencies
             sudo pacman -S --needed --noconfirm \
                 rust \
                 cargo \
@@ -96,7 +79,6 @@ install_system_deps() {
             
             ok "Core dependencies installed"
             
-            # AUR dependencies (gslapper)
             if command -v yay &>/dev/null; then
                 step "Installing gslapper from AUR (yay)..."
                 yay -S --needed --noconfirm gslapper 2>&1 | grep -v "warning:" || warn "gslapper install failed"
@@ -137,7 +119,6 @@ install_system_deps() {
             
             ok "Core dependencies installed"
             
-            # Install Rust if not present
             if ! command -v cargo &>/dev/null; then
                 step "Installing Rust..."
                 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -145,7 +126,6 @@ install_system_deps() {
                 ok "Rust installed"
             fi
             
-            # Install pywal
             step "Installing pywal..."
             pip3 install --user pywal >/dev/null 2>&1 || warn "pywal install failed"
             
@@ -216,19 +196,14 @@ install_system_deps() {
     esac
 }
 
-# ─────────────────────────────────────────────
-#   Configure System Services
-# ─────────────────────────────────────────────
 configure_services() {
     header "System Services"
     
-    # Enable bluetooth
     if systemctl is-enabled bluetooth.service &>/dev/null || sudo systemctl enable bluetooth.service &>/dev/null; then
         ok "Bluetooth service enabled"
         sudo systemctl start bluetooth.service 2>/dev/null || true
     fi
     
-    # Detect sensors
     if command -v sensors-detect &>/dev/null; then
         step "Detecting hardware sensors..."
         yes | sudo sensors-detect &>/dev/null || true
@@ -236,9 +211,6 @@ configure_services() {
     fi
 }
 
-# ─────────────────────────────────────────────
-#   Create Config Directory
-# ─────────────────────────────────────────────
 create_config() {
     header "Configuration"
     
@@ -252,33 +224,18 @@ create_config() {
     if [ ! -f "$CONFIG_DIR/Sierra" ]; then
         step "Creating default config file..."
         cat > "$CONFIG_DIR/Sierra" << 'EOF'
-# Sierra Launcher Configuration
-
-# Font Settings
 font = "Monocraft"
 font_size = 14.0
-
-# Title Animation
 title_text = " sierra-launcher "
-title_animation = "Wave"  # Options: Rainbow, Wave, InOutWave, Pulse, Sparkle, Gradient
-
-# Wallpaper Directory
+title_animation = "Wave"
 wallpaper_dir = "~/Pictures/Wallpapers"
+use_pywal = false
 
-# Weather Location (auto-detected if not set)
-# Examples: "New York", "London, UK", "Mumbai, India"
-# weather_location = "Your City"
-
-# Theme Mode
-use_pywal = false  # Set to true to use pywal colors
-
-# Custom Theme (only used if use_pywal = false)
 [theme]
 background = "#1a1b26"
 foreground = "#c0caf5"
 border     = "#7aa2f7"
 accent     = "#7dcfff"
-
 color0  = "#15161e"
 color1  = "#f7768e"
 color2  = "#9ece6a"
@@ -303,23 +260,16 @@ EOF
     fi
 }
 
-# ─────────────────────────────────────────────
-#   Banner
-# ─────────────────────────────────────────────
 clear
 echo ""
 echo -e "  ${BOLD}${WHITE}Sierra Launcher${RESET}  ${DIM}${GRAY}Automated Installation${RESET}"
 echo ""
 
-# Check if running as root
 if [ "$EUID" -eq 0 ]; then 
     fail "Do not run as root! Run as your normal user."
     exit 1
 fi
 
-# ─────────────────────────────────────────────
-#   Wayland Check
-# ─────────────────────────────────────────────
 header "Environment"
 
 if [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_SESSION_TYPE" != "wayland" ]; then
@@ -331,40 +281,23 @@ else
     ok "Wayland session detected  ${DIM}${GRAY}($XDG_SESSION_TYPE)${RESET}"
 fi
 
-# ─────────────────────────────────────────────
-#   Install Dependencies
-# ─────────────────────────────────────────────
 install_system_deps
-
-# ─────────────────────────────────────────────
-#   Configure Services
-# ─────────────────────────────────────────────
 configure_services
-
-# ─────────────────────────────────────────────
-#   Create Config
-# ─────────────────────────────────────────────
 create_config
 
-# ─────────────────────────────────────────────
-#   Stop Existing Service
-# ─────────────────────────────────────────────
 header "Cleanup"
 
-# Temporarily disable exit on error for cleanup
 set +e
 
-# Check if service exists before trying to stop it
 if systemctl --user list-unit-files 2>/dev/null | grep -q "sierra-launcher"; then
     if systemctl --user is-active sierra-launcher 2>/dev/null; then
         step "Stopping existing sierra-launcher service..."
         systemctl --user stop sierra-launcher 2>/dev/null
-        sleep 0.5  # Give it time to fully stop
+        sleep 0.5
         ok "Service stopped"
     fi
 fi
 
-# Remove old socket (safe to do even if doesn't exist)
 SOCKET_PATH="${XDG_RUNTIME_DIR:-/tmp}/sierra-launcher.sock"
 if [ -S "$SOCKET_PATH" ]; then
     step "Removing old socket..."
@@ -372,15 +305,10 @@ if [ -S "$SOCKET_PATH" ]; then
     ok "Socket removed"
 fi
 
-# Re-enable exit on error
 set -e
 
-# ─────────────────────────────────────────────
-#   Build
-# ─────────────────────────────────────────────
 header "Build"
 
-# Ensure we have cargo in PATH
 if ! command -v cargo &>/dev/null; then
     source "$HOME/.cargo/env" 2>/dev/null || true
 fi
@@ -397,7 +325,6 @@ cargo build --release 2>&1 | grep -E "^   Compiling|^    Finished|^error" | whil
     esac
 done
 
-# Handle both binary names (sierra_launcher and sierra-launcher)
 BINARY=""
 if [ -f "target/release/sierra_launcher" ]; then
     BINARY="target/release/sierra_launcher"
@@ -413,9 +340,6 @@ fi
 
 ok "Build complete"
 
-# ─────────────────────────────────────────────
-#   Install Binary
-# ─────────────────────────────────────────────
 header "Installation"
 
 step "Installing daemon binary to /usr/bin/sierra-launcher-daemon..."
@@ -427,32 +351,24 @@ step "Installing wrapper script to /usr/bin/sierra-launcher..."
 if [ -f "sh/sierra-launcher-wrapper.sh" ]; then
     sudo cp sh/sierra-launcher-wrapper.sh /usr/bin/sierra-launcher
 else
-    # Create wrapper if it doesn't exist
     sudo tee /usr/bin/sierra-launcher >/dev/null << 'EOF'
 #!/bin/bash
-# sierra-launcher wrapper script
 SOCKET_PATH="${XDG_RUNTIME_DIR:-/tmp}/sierra-launcher.sock"
 BINARY="/usr/bin/sierra-launcher-daemon"
 
-# Check if daemon is running
 if [ -S "$SOCKET_PATH" ]; then
-    # Send SHOW command to daemon
     echo "SHOW" | socat - UNIX-CONNECT:"$SOCKET_PATH" 2>/dev/null
     if [ $? -eq 0 ]; then
         exit 0
     fi
 fi
 
-# Daemon not running, start it
 exec "$BINARY"
 EOF
 fi
 sudo chmod +x /usr/bin/sierra-launcher
 ok "Wrapper script installed"
 
-# ─────────────────────────────────────────────
-#   Systemd Service
-# ─────────────────────────────────────────────
 header "Systemd Service"
 
 step "Installing systemd user service..."
@@ -461,7 +377,6 @@ mkdir -p ~/.config/systemd/user/
 if [ -f "sh/sierra-launcher.service" ]; then
     cp sh/sierra-launcher.service ~/.config/systemd/user/
 else
-    # Create service file if it doesn't exist
     cat > ~/.config/systemd/user/sierra-launcher.service << 'EOF'
 [Unit]
 Description=Sierra Launcher Daemon
@@ -474,8 +389,6 @@ Type=simple
 ExecStart=/usr/bin/sierra-launcher-daemon
 Restart=on-failure
 RestartSec=2s
-
-# Clean up socket on exit
 ExecStopPost=/bin/rm -f %t/sierra-launcher.sock
 
 [Install]
@@ -492,9 +405,6 @@ step "Enabling autostart on login..."
 systemctl --user enable sierra-launcher.service
 ok "Autostart enabled"
 
-# ─────────────────────────────────────────────
-#   Wallpaper Restore Service (Optional)
-# ─────────────────────────────────────────────
 if command -v gslapper &>/dev/null; then
     header "Wallpaper Restore"
     
@@ -504,19 +414,15 @@ if command -v gslapper &>/dev/null; then
     else
         sudo tee /usr/local/bin/restore-wallpaper.sh >/dev/null << 'EOF'
 #!/bin/bash
-# Restore wallpaper from Sierra launcher cache on login
 set -e
 
 CACHE_FILE="$HOME/.cache/sierra/wallpapers/last_wallpaper.json"
-
-# Wait for compositor to be ready
 sleep 0.5
 
 if [ ! -f "$CACHE_FILE" ]; then
     exit 0
 fi
 
-# Extract wallpaper path from JSON
 if command -v jq &>/dev/null; then
     WALLPAPER=$(jq -r '.last_wallpaper' "$CACHE_FILE")
 else
@@ -527,11 +433,9 @@ if [ -z "$WALLPAPER" ] || [ ! -f "$WALLPAPER" ]; then
     exit 0
 fi
 
-# Kill any existing gSlapper instances
 pkill -9 gslapper 2>/dev/null || true
 sleep 0.1
 
-# Determine wallpaper type from extension
 EXT="${WALLPAPER##*.}"
 EXT_LOWER="${EXT,,}"
 
@@ -573,9 +477,6 @@ EOF
     ok "Wallpaper restore enabled"
 fi
 
-# ─────────────────────────────────────────────
-#   Start Service
-# ─────────────────────────────────────────────
 header "Start Service"
 
 step "Starting sierra-launcher daemon..."
@@ -589,27 +490,21 @@ else
     info "Check logs: journalctl --user -u sierra-launcher"
 fi
 
-# ─────────────────────────────────────────────
-#   Compositor Keybind Suggestion
-# ─────────────────────────────────────────────
 header "Compositor Setup"
 
 echo -e "  ${WHITE}Add this keybind to your compositor config:${RESET}"
 echo ""
 if [ "$XDG_CURRENT_DESKTOP" = "Hyprland" ] || command -v hyprctl &>/dev/null; then
-    echo -e "  ${CYAN}# Hyprland (~/.config/hypr/hyprland.conf)${RESET}"
+    echo -e "  ${CYAN}Hyprland (~/.config/hypr/hyprland.conf)${RESET}"
     echo -e "  ${DIM}bind = \$mainMod, F, exec, sierra-launcher${RESET}"
 elif command -v swaymsg &>/dev/null; then
-    echo -e "  ${CYAN}# Sway (~/.config/sway/config)${RESET}"
+    echo -e "  ${CYAN}Sway (~/.config/sway/config)${RESET}"
     echo -e "  ${DIM}bindsym \$mod+f exec sierra-launcher${RESET}"
 else
-    echo -e "  ${CYAN}# Add to your compositor config:${RESET}"
+    echo -e "  ${CYAN}Add to your compositor config:${RESET}"
     echo -e "  ${DIM}sierra-launcher${RESET}"
 fi
 
-# ─────────────────────────────────────────────
-#   Complete
-# ─────────────────────────────────────────────
 echo ""
 echo -e "  ${BOLD}${GREEN}✓ Installation Complete!${RESET}"
 echo ""

@@ -1,12 +1,8 @@
 #!/bin/bash
-# Restore wallpaper from Sierra launcher cache on login
-# Install to: /usr/local/bin/restore-wallpaper.sh
-
 set -e
 
 CACHE_FILE="$HOME/.cache/sierra/wallpapers/last_wallpaper.json"
 
-# Wait for compositor to be ready
 sleep 0.5
 
 if [ ! -f "$CACHE_FILE" ]; then
@@ -14,10 +10,8 @@ if [ ! -f "$CACHE_FILE" ]; then
     exit 0
 fi
 
-# Extract wallpaper path from JSON (requires jq)
 if ! command -v jq &>/dev/null; then
     echo "[Wallpaper] jq not installed, using fallback parser"
-    # Fallback: simple grep/sed parsing
     WALLPAPER=$(grep -oP '"last_wallpaper":\s*"\K[^"]+' "$CACHE_FILE")
 else
     WALLPAPER=$(jq -r '.last_wallpaper' "$CACHE_FILE")
@@ -28,11 +22,9 @@ if [ -z "$WALLPAPER" ] || [ ! -f "$WALLPAPER" ]; then
     exit 0
 fi
 
-# Kill any existing gSlapper instances
 pkill -9 gslapper 2>/dev/null || true
 sleep 0.1
 
-# Determine wallpaper type from extension
 EXT="${WALLPAPER##*.}"
 EXT_LOWER="${EXT,,}"
 

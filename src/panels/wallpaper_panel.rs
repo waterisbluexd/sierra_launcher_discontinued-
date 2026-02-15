@@ -15,7 +15,6 @@ pub fn wallpaper_panel_view<'a>(
 ) -> Element<'a, Message> {
     let wallpaper_view: Element<'a, Message> = if let Some(index) = wallpapers {
         if let Some(entry) = index.wallpapers.get(selected) {
-            // ✅ ALWAYS use thumbnail (now ALL entries have thumbnails)
             let thumb_path = &entry.thumbnail;
 
             image(image::Handle::from_path(thumb_path))

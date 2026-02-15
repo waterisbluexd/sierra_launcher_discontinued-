@@ -225,12 +225,6 @@ impl SystemPanel {
     }
 }
 
-
-// ─────────────────────────────────────────────
-// UI View (Unchanged)
-// ─────────────────────────────────────────────
-
-
 #[inline]
 fn vertical_bar<'a>(
     label: &'a str,

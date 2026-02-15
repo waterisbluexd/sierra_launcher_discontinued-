@@ -16,9 +16,7 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             match event {
                 Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
                     match key {
-                        // ESC is now handled in main.rs daemon mode - it closes the window
                         keyboard::Key::Named(Named::Escape) => {
-                            // Window will be closed by daemon, just reset state
                             launcher.search_bar.input_value.clear();
                             let _ = launcher.app_list.update(app_list::Message::SearchInput(String::new()));
                             launcher.clipboard_visible = false;
@@ -29,9 +27,7 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                             if launcher.clipboard_visible {
                                 return Command::perform(async {}, |_| Message::ClipboardSelect);
                             } else {
-                                // Launch selected app
                                 let _ = launcher.app_list.update(app_list::Message::LaunchSelected);
-                                // DON'T EXIT - window closes itself via daemon
                             }
                         }
                         
@@ -83,9 +79,7 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                             }
                         }
                         
-                        _ => {
-                            // Ignore other keys
-                        }
+                        _ => {}
                     }
                 }
                 Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) => {
@@ -105,14 +99,11 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 eprintln!("[Main] Triggered lazy app loading");
                 launcher.system_panel.start();
                 
-                // Load wallpaper index synchronously so it's available immediately
                 if launcher.wallpaper_index.is_none() {
-                    // First try the global pre-loaded cache
                     if let Some(cached_index) = crate::utils::wallpaper_manager::get_cached_index() {
                         launcher.wallpaper_index = Some(cached_index.clone());
                         eprintln!("[Wallpaper] ✓ Using pre-loaded global index");
                         
-                        // Set selected index to last wallpaper
                         if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
                             let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
                             if let (Some(last_wallpaper_path), Some(ref idx)) = (manager.get_last_wallpaper(), &launcher.wallpaper_index) {
@@ -122,16 +113,11 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                             }
                         }
                     } else if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
-                        // Fallback: load on demand if not pre-loaded
                         let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
-                        
-                        // Generate cache if it doesn't exist
                         manager.ensure_cache();
-                        
                         launcher.wallpaper_index = manager.load_index();
                         eprintln!("[Wallpaper] Index loaded: {:?}", launcher.wallpaper_index.as_ref().map(|i| i.wallpapers.len()));
                         
-                        // Set selected index to last wallpaper
                         if let (Some(last_wallpaper_path), Some(ref idx)) = (manager.get_last_wallpaper(), &launcher.wallpaper_index) {
                             if let Some(pos) = idx.wallpapers.iter().position(|e| e.path == last_wallpaper_path) {
                                 launcher.wallpaper_selected_index = pos;
@@ -144,7 +130,6 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                     launcher.watcher = ColorWatcher::new().ok();
                 }
                 
-                // Return WindowReady message to trigger focus
                 return Command::done(Message::WindowReady);
             }
             
@@ -153,7 +138,6 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             }
             
             launcher.frame_count += 1;
-            
             launcher.title_animator.update();
             
             let now = Instant::now();
@@ -162,7 +146,6 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 if launcher.config.use_pywal {
                     if let Some(ref watcher) = launcher.watcher {
                         if watcher.check_for_changes() {
-                            // Clear cache and reload theme
                             crate::utils::theme::clear_theme_cache();
                             launcher.theme = crate::utils::theme::get_cached_theme(&launcher.config);
                             eprintln!("Pywal theme reloaded");
@@ -191,7 +174,6 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 }
                 search_bar::Message::Submitted => {
                     let _ = launcher.app_list.update(app_list::Message::LaunchSelected);
-                    // Send AppLaunched message to close the window
                     Command::done(Message::AppLaunched)
                 }
             }
@@ -223,17 +205,12 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             }
             
             if launcher.current_panel == Panel::Wallpaper && launcher.wallpaper_index.is_none() {
-                // First try the global pre-loaded cache
                 if let Some(cached_index) = crate::utils::wallpaper_manager::get_cached_index() {
                     launcher.wallpaper_index = Some(cached_index);
                     eprintln!("[Wallpaper] ✓ Using pre-loaded global index (panel switch)");
                 } else if let Some(ref wallpaper_dir) = launcher.config.wallpaper_dir {
-                    // Fallback: load on demand
                     let manager = crate::utils::wallpaper_manager::WallpaperManager::new(wallpaper_dir.clone());
-                    
-                    // Generate cache if it doesn't exist
                     manager.ensure_cache();
-                    
                     launcher.wallpaper_index = manager.load_index();
                     
                     if let (Some(last_wallpaper_path), Some(ref idx)) = (manager.get_last_wallpaper(), &launcher.wallpaper_index) {
@@ -320,11 +297,10 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::PowerOffTheSystem => {
             launcher.control_center_visible = false;
             
-            // Use double --force for immediate shutdown bypassing session managers
             std::thread::spawn(|| {
                 let result = std::process::Command::new("systemctl")
                     .args(["poweroff", "--force", "--force"])
-                    .spawn();  // spawn() returns immediately, doesn't wait for completion
+                    .spawn();
                 if let Err(e) = result {
                     eprintln!("[PowerOff] Failed: {}", e);
                 }
@@ -335,11 +311,10 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::RestartTheSystem => {
             launcher.control_center_visible = false;
             
-            // Use double --force for immediate reboot bypassing session managers
             std::thread::spawn(|| {
                 let result = std::process::Command::new("systemctl")
                     .args(["reboot", "--force", "--force"])
-                    .spawn();  // spawn() returns immediately, doesn't wait for completion
+                    .spawn();
                 if let Err(e) = result {
                     eprintln!("[Restart] Failed: {}", e);
                 }
@@ -350,11 +325,10 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::SleepModeTheSystem => {
             launcher.control_center_visible = false;
             
-            // Use --force for immediate suspend
             std::thread::spawn(|| {
                 let result = std::process::Command::new("systemctl")
                     .args(["suspend", "--force"])
-                    .spawn();  // spawn() returns immediately, doesn't wait for completion
+                    .spawn();
                 if let Err(e) = result {
                     eprintln!("[Suspend] Failed: {}", e);
                 }
@@ -378,15 +352,14 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         }
 
         Message::ClipboardSelect => {
-                let items = crate::utils::data::search_items("");
-                if let Some(item) = items.get(launcher.clipboard_selected_index) {
-                    let content = item.full_content();
-                
-                    crate::utils::monitor::set_ignore_next(content.clone());
-                    let _ = crate::utils::copy::copy_to_clipboard(&content);
-                }
-                Command::none()
+            let items = crate::utils::data::search_items("");
+            if let Some(item) = items.get(launcher.clipboard_selected_index) {
+                let content = item.full_content();
+                crate::utils::monitor::set_ignore_next(content.clone());
+                let _ = crate::utils::copy::copy_to_clipboard(&content);
             }
+            Command::none()
+        }
 
 
         Message::ClipboardDelete => {
@@ -443,48 +416,29 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::NoOp => Command::none(),
         
         Message::FocusSearchBar => {
-            // Focus the search bar input
             iced::widget::operation::focus(launcher.search_bar.input_id.clone())
         }
         
-        Message::WindowReady => {
-            // Handled by main.rs
-            Command::none()
-        }
+        Message::WindowReady => Command::none(),
         
         Message::ShowWindow => {
-            // Window show is handled by main.rs
             eprintln!("[IPC] ShowWindow message received");
             Command::none()
         }
         
         Message::HideWindow => {
-            // Window hide is handled by main.rs
             eprintln!("[IPC] HideWindow message received");
             Command::none()
         }
         
-        Message::NewLayerShell { .. } => {
-            // Handled by layershell
-            Command::none()
-        }
+        Message::NewLayerShell { .. } => Command::none(),
         
-        Message::Close(_id) => {
-            // Handled by main.rs
-            Command::none()
-        }
+        Message::Close(_id) => Command::none(),
         
-        Message::WindowClosed(_id) => {
-            // Handled by main.rs
-            Command::none()
-        }
+        Message::WindowClosed(_id) => Command::none(),
         
-        Message::AppLaunched => {
-            // Handled by main.rs - close the window
-            Command::none()
-        }
+        Message::AppLaunched => Command::none(),
         
-        // Handle all layershell auto-generated messages (multi-window variants)
         Message::AnchorChange { .. } => Command::none(),
         Message::LayerChange { .. } => Command::none(),
         Message::AnchorSizeChange { .. } => Command::none(),

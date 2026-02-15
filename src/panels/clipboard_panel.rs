@@ -7,7 +7,6 @@ const PREVIEW_LINES: usize = 3;
 const CHARS_PER_LINE: usize = 40;
 const WINDOW_SIZE: usize = 7;
 
-/// Build preview lines safely (UTF-8 safe, owned Strings)
 fn create_preview_lines(content: &str) -> Vec<String> {
     let mut lines = Vec::new();
     let mut current = String::new();
@@ -28,7 +27,6 @@ fn create_preview_lines(content: &str) -> Vec<String> {
             }
 
             if word.len() > CHARS_PER_LINE {
-                // FIX: UTF-8 safe truncation
                 let mut truncated = String::new();
                 let mut char_count = 0;
                 for ch in word.chars() {
@@ -56,7 +54,6 @@ fn create_preview_lines(content: &str) -> Vec<String> {
 
     if words.peek().is_some() && !lines.is_empty() {
         if let Some(last) = lines.last_mut() {
-            // FIX: UTF-8 safe truncation for ellipsis
             if last.chars().count() > CHARS_PER_LINE.saturating_sub(3) {
                 let mut truncated = String::new();
                 let mut char_count = 0;

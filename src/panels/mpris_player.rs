@@ -74,12 +74,9 @@ impl MusicPlayer {
     }
 
     pub fn refresh_player(&mut self) {
-        // Refresh player every 2 seconds
         if self.internal.last_check.elapsed() > Duration::from_secs(2) {
             self.internal.player = Self::find_active_player();
             self.internal.last_check = std::time::Instant::now();
-            
-            // Update player info
             self.update_player_info();
         }
     }
@@ -88,37 +85,29 @@ impl MusicPlayer {
         if let Some(player) = &self.internal.player {
             if let Ok(metadata) = player.get_metadata() {
                 if let Ok(status) = player.get_playback_status() {
-                    // Update app name
                     self.state.app_name = player.identity().to_string();
 
-                    // Update song name
                     self.state.song_name = metadata.title()
                         .unwrap_or("Unknown")
                         .to_string();
 
-                    // Update artist
                     self.state.artist_name = metadata
                         .artists()
                         .and_then(|artists| artists.first().map(|s| s.to_string()))
                         .unwrap_or_else(|| "Unknown Artist".to_string());
 
-                    // Update total time
                     self.state.total_time = metadata.length()
                         .map(|l| (l.as_micros() as f64 / 1_000_000.0) as f32)
                         .unwrap_or(0.0);
 
-                    // Update current position
                     let position = if status == PlaybackStatus::Paused {
-                        // If we just transitioned to paused, cache the current position
                         if self.internal.last_status != Some(PlaybackStatus::Paused) {
                             self.internal.cached_position = player.get_position()
                                 .ok()
                                 .map(|p| p.as_micros() as i64);
                         }
-                        // Use cached position
                         self.internal.cached_position.unwrap_or(0)
                     } else {
-                        // Playing or stopped - get fresh position and clear cache
                         self.internal.cached_position = None;
                         player.get_position()
                             .ok()
@@ -128,7 +117,6 @@ impl MusicPlayer {
 
                     self.state.current_time = (position as f64 / 1_000_000.0) as f32;
 
-                    // Update playing status
                     self.state.is_playing = status == PlaybackStatus::Playing;
                     self.internal.last_status = Some(status);
                     self.state.player_available = true;
@@ -137,7 +125,6 @@ impl MusicPlayer {
             }
         }
 
-        // No player available
         self.state.player_available = false;
         self.state.app_name = "No Player".to_string();
         self.state.song_name = "No Music Playing".to_string();
@@ -175,7 +162,6 @@ impl MusicPlayer {
     pub fn next_track(&mut self) -> bool {
         if let Some(player) = &self.internal.player {
             let result = if let Err(_) = player.next() {
-                // If next() fails, try seeking forward significantly
                 let offset = Duration::from_secs(999999);
                 player.seek_forwards(&offset).is_ok()
             } else {
@@ -195,7 +181,6 @@ impl MusicPlayer {
     pub fn previous_track(&mut self) -> bool {
         if let Some(player) = &self.internal.player {
             let result = if let Err(_) = player.previous() {
-                // If previous() fails, try seeking backwards significantly
                 let offset = Duration::from_secs(999999);
                 player.seek_backwards(&offset).is_ok()
             } else {
@@ -216,10 +201,8 @@ impl MusicPlayer {
         if let Some(player) = &self.internal.player {
             let position_micros = (position_seconds * 1_000_000.0) as i64;
             
-            // MPRIS uses absolute position
             if let Ok(metadata) = player.get_metadata() {
                 if let Some(track_id) = metadata.track_id() {
-                    // Try to set position
                     let position = Duration::from_micros(position_micros as u64);
                     if player.set_position(track_id, &position).is_ok() {
                         self.state.current_time = position_seconds;
