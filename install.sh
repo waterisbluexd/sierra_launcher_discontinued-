@@ -323,15 +323,10 @@ fi
 header "Environment"
 
 if [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_SESSION_TYPE" != "wayland" ]; then
-    fail "Wayland session not detected"
+    warn "Wayland session not detected"
     info "Current session: ${XDG_SESSION_TYPE:-unknown}"
     info "Sierra requires a Wayland compositor (Hyprland, Sway, etc.)"
-    echo ""
-    read -p "  Continue anyway? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
+    info "Continuing anyway..."
 else
     ok "Wayland session detected  ${DIM}${GRAY}($XDG_SESSION_TYPE)${RESET}"
 fi
@@ -356,18 +351,29 @@ create_config
 # ─────────────────────────────────────────────
 header "Cleanup"
 
-if systemctl --user is-active sierra-launcher &>/dev/null; then
-    step "Stopping existing sierra-launcher service..."
-    systemctl --user stop sierra-launcher 2>/dev/null || true
-    ok "Service stopped"
+# Temporarily disable exit on error for cleanup
+set +e
+
+# Check if service exists before trying to stop it
+if systemctl --user list-unit-files 2>/dev/null | grep -q "sierra-launcher"; then
+    if systemctl --user is-active sierra-launcher 2>/dev/null; then
+        step "Stopping existing sierra-launcher service..."
+        systemctl --user stop sierra-launcher 2>/dev/null
+        sleep 0.5  # Give it time to fully stop
+        ok "Service stopped"
+    fi
 fi
 
-# Remove old socket
-if [ -S "${XDG_RUNTIME_DIR:-/tmp}/sierra-launcher.sock" ]; then
+# Remove old socket (safe to do even if doesn't exist)
+SOCKET_PATH="${XDG_RUNTIME_DIR:-/tmp}/sierra-launcher.sock"
+if [ -S "$SOCKET_PATH" ]; then
     step "Removing old socket..."
-    rm -f "${XDG_RUNTIME_DIR:-/tmp}/sierra-launcher.sock"
+    rm -f "$SOCKET_PATH" 2>/dev/null
     ok "Socket removed"
 fi
+
+# Re-enable exit on error
+set -e
 
 # ─────────────────────────────────────────────
 #   Build
