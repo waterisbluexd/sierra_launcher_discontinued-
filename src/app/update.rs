@@ -320,13 +320,11 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::PowerOffTheSystem => {
             launcher.control_center_visible = false;
             
-            // Close window first, then poweroff
+            // Use double --force for immediate shutdown bypassing session managers
             std::thread::spawn(|| {
-                // Increased delay to allow proper window cleanup
-                std::thread::sleep(std::time::Duration::from_millis(300));
                 let result = std::process::Command::new("systemctl")
-                    .arg("poweroff")
-                    .output();
+                    .args(["poweroff", "--force", "--force"])
+                    .status();
                 if let Err(e) = result {
                     eprintln!("[PowerOff] Failed: {}", e);
                 }
@@ -337,13 +335,11 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::RestartTheSystem => {
             launcher.control_center_visible = false;
             
-            // Close window first, then reboot
+            // Use double --force for immediate reboot bypassing session managers
             std::thread::spawn(|| {
-                // Increased delay to allow proper window cleanup
-                std::thread::sleep(std::time::Duration::from_millis(300));
                 let result = std::process::Command::new("systemctl")
-                    .arg("reboot")
-                    .output();
+                    .args(["reboot", "--force", "--force"])
+                    .status();
                 if let Err(e) = result {
                     eprintln!("[Restart] Failed: {}", e);
                 }
@@ -354,13 +350,11 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::SleepModeTheSystem => {
             launcher.control_center_visible = false;
             
-            // Close window first, then suspend
+            // Use --force for immediate suspend
             std::thread::spawn(|| {
-                // Increased delay to allow proper window cleanup
-                std::thread::sleep(std::time::Duration::from_millis(300));
                 let result = std::process::Command::new("systemctl")
-                    .arg("suspend")
-                    .output();
+                    .args(["suspend", "--force"])
+                    .status();
                 if let Err(e) = result {
                     eprintln!("[Suspend] Failed: {}", e);
                 }
