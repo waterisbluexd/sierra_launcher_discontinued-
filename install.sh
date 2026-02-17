@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Fallback for TERM if not set (needed for clear command)
+if [ -z "$TERM" ]; then
+    export TERM="xterm-256color"
+fi
+
 RESET='\033[0m'
 BOLD='\033[1m'
 DIM='\033[2m'
@@ -260,7 +265,8 @@ EOF
     fi
 }
 
-clear
+# Clear screen (use printf for TERM resilience)
+printf '\033[2J\033[H'
 echo ""
 echo -e "  ${BOLD}${WHITE}Sierra Launcher${RESET}  ${DIM}${GRAY}Automated Installation${RESET}"
 echo ""
@@ -287,16 +293,16 @@ create_config
 
 header "Cleanup"
 
-set +e
+# Kill any running sierra-launcher processes (be specific to avoid killing this script)
+step "Stopping any running sierra-launcher instances..."
+pkill -x "sierra-launcher-daemon" 2>/dev/null || true
+pkill -x "sierra_launcher" 2>/dev/null || true
+pkill -x "sierra-launcher" 2>/dev/null || true
+sleep 0.5
 
-if systemctl --user list-unit-files 2>/dev/null | grep -q "sierra-launcher"; then
-    if systemctl --user is-active sierra-launcher 2>/dev/null; then
-        step "Stopping existing sierra-launcher service..."
-        systemctl --user stop sierra-launcher 2>/dev/null
-        sleep 0.5
-        ok "Service stopped"
-    fi
-fi
+# Also stop via systemd if available
+systemctl --user stop sierra-launcher 2>/dev/null || true
+sleep 0.3
 
 SOCKET_PATH="${XDG_RUNTIME_DIR:-/tmp}/sierra-launcher.sock"
 if [ -S "$SOCKET_PATH" ]; then
@@ -305,7 +311,7 @@ if [ -S "$SOCKET_PATH" ]; then
     ok "Socket removed"
 fi
 
-set -e
+ok "Cleanup complete"
 
 header "Build"
 

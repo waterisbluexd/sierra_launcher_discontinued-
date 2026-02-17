@@ -20,101 +20,105 @@ pub fn music_panel_view<'a>(
                 container(
                     container(
                         if music_state.player_available {
-                            column![
+                            row![
+                                // Left side: Thumbnail square
                                 container(
-                                    text(&music_state.app_name)
-                                        .color(Color::from_rgba(
-                                            theme.color6.r,
-                                            theme.color6.g,
-                                            theme.color6.b,
-                                            0.6
-                                        ))
-                                        .font(font)
-                                        .size(font_size)
+                                    container(text(""))
                                 )
-                                .width(Length::Fill)
-                                .height(Length::Shrink)
-                                .padding(iced::padding::top(8).left(15).bottom(25)),
+                                .width(Length::Fixed(140.0))
+                                .height(Length::Fixed(140.0))
+                                .style(move |_| container::Style {
+                                    background: Some(theme.color5.into()),
+                                    border: Border {
+                                        color: theme.color3,
+                                        width: 2.0,
+                                        radius: 0.0.into(),
+                                    },
+                                    ..Default::default()
+                                }),
                                 
-                                container(
-                                    text(&music_state.song_name)
-                                        .color(theme.color1)
-                                        .font(font)
-                                        .size(font_size)
-                                )
-                                .width(Length::Fill)
-                                .center_x(Length::Fill)
-                                .padding(iced::padding::bottom(11)),
-                                
-                                container(
-                                    text(&music_state.artist_name)
-                                        .color(Color::from_rgba(
-                                            theme.color6.r,
-                                            theme.color6.g,
-                                            theme.color6.b,
-                                            0.7
-                                        ))
-                                        .font(font)
-                                        .size(font_size * 0.65)
-                                )
-                                .width(Length::Fill)
-                                .center_x(Length::Fill)
-                                .padding(iced::padding::bottom(15)),
-                                
-                                row![
-                                    text(MusicPlayer::format_time(music_state.current_time))
-                                        .color(theme.color6)
-                                        .font(font)
-                                        .size(font_size),
-                                    
-                                    slider(
-                                        0.0..=music_state.total_time.max(1.0),
-                                        music_state.current_time,
-                                        Message::MusicProgressChanged
+                                // Right side: Music info and controls
+                                column![
+                                    // Title
+                                    container(
+                                        text(&music_state.song_name)
+                                            .color(theme.color1)
+                                            .font(font)
+                                            .size(font_size * 1.2)
                                     )
                                     .width(Length::Fill)
-                                    .step(1.0)
-                                    .style(move |_theme_palette, _status| {
-                                        slider::Style {
-                                            rail: slider::Rail {
-                                                backgrounds: (
-                                                    Background::Color(theme.color4),
-                                                    Background::Color(Color::from_rgba(
-                                                        theme.color6.r,
-                                                        theme.color6.g,
-                                                        theme.color6.b,
-                                                        0.0
-                                                    )),
-                                                ),
-                                                width: 20.0,
-                                                border: Border {
-                                                    radius: 0.0.into(),
-                                                    ..Default::default()
-                                                },
-                                            },
-                                            handle: slider::Handle {
-                                                shape: slider::HandleShape::Rectangle {
-                                                    width: 0,
-                                                    border_radius: 0.0.into(),
-                                                },
-                                                background: Background::Color(Color::TRANSPARENT),
-                                                border_width: 0.0,
-                                                border_color: Color::TRANSPARENT,
-                                            },
-                                        }
-                                    }),
+                                    .padding(iced::padding::bottom(8)),
                                     
-                                    text(MusicPlayer::format_time(music_state.total_time))
-                                        .color(theme.color6)
-                                        .font(font)
-                                        .size(font_size),
-                                ]
-                                .width(Length::Fill)
-                                .spacing(12)
-                                .align_y(Alignment::Center)
-                                .padding(iced::padding::top(8).left(15).right(15)),
-                                
-                                container(
+                                    // Artist
+                                    container(
+                                        text(&music_state.artist_name)
+                                            .color(Color::from_rgba(
+                                                theme.color6.r,
+                                                theme.color6.g,
+                                                theme.color6.b,
+                                                0.7
+                                            ))
+                                            .font(font)
+                                            .size(font_size * 0.75)
+                                    )
+                                    .width(Length::Fill)
+                                    .padding(iced::padding::bottom(25)),
+                                    
+                                    // Progress bar with timestamps
+                                    row![
+                                        text(MusicPlayer::format_time(music_state.current_time))
+                                            .color(theme.color6)
+                                            .font(font)
+                                            .size(font_size * 0.8),
+                                        
+                                        slider(
+                                            0.0..=music_state.total_time.max(1.0),
+                                            music_state.current_time,
+                                            Message::MusicProgressChanged
+                                        )
+                                        .width(Length::Fill)
+                                        .step(1.0)
+                                        .style(move |_theme_palette, _status| {
+                                            slider::Style {
+                                                rail: slider::Rail {
+                                                    backgrounds: (
+                                                        Background::Color(theme.color4),
+                                                        Background::Color(Color::from_rgba(
+                                                            theme.color6.r,
+                                                            theme.color6.g,
+                                                            theme.color6.b,
+                                                            0.0
+                                                        )),
+                                                    ),
+                                                    width: 20.0,
+                                                    border: Border {
+                                                        radius: 0.0.into(),
+                                                        ..Default::default()
+                                                    },
+                                                },
+                                                handle: slider::Handle {
+                                                    shape: slider::HandleShape::Rectangle {
+                                                        width: 0,
+                                                        border_radius: 0.0.into(),
+                                                    },
+                                                    background: Background::Color(Color::TRANSPARENT),
+                                                    border_width: 0.0,
+                                                    border_color: Color::TRANSPARENT,
+                                                },
+                                            }
+                                        }),
+                                        
+                                        text(MusicPlayer::format_time(music_state.total_time))
+                                            .color(theme.color6)
+                                            .font(font)
+                                            .size(font_size * 0.8),
+                                    ]
+                                    .width(Length::Fill)
+                                    .spacing(10)
+                                    .align_y(Alignment::Center)
+                                    .padding(iced::padding::bottom(20)),
+                                    
+                                    // Control buttons
                                     row![
                                         button(
                                             container(
@@ -123,8 +127,8 @@ pub fn music_panel_view<'a>(
                                                     .font(font)
                                                     .size(font_size)
                                             )
-                                            .width(Length::Fixed(55.0))
-                                            .height(Length::Fixed(55.0))
+                                            .width(Length::Fixed(50.0))
+                                            .height(Length::Fixed(50.0))
                                             .center_x(Length::Shrink)
                                             .center_y(Length::Shrink)
                                         )
@@ -146,8 +150,8 @@ pub fn music_panel_view<'a>(
                                                     .font(font)
                                                     .size(font_size)
                                             )
-                                            .width(Length::Fixed(55.0))
-                                            .height(Length::Fixed(55.0))
+                                            .width(Length::Fixed(50.0))
+                                            .height(Length::Fixed(50.0))
                                             .center_x(Length::Shrink)
                                             .center_y(Length::Shrink)
                                         )
@@ -169,8 +173,8 @@ pub fn music_panel_view<'a>(
                                                     .font(font)
                                                     .size(font_size)
                                             )
-                                            .width(Length::Fixed(55.0))
-                                            .height(Length::Fixed(55.0))
+                                            .width(Length::Fixed(50.0))
+                                            .height(Length::Fixed(50.0))
                                             .center_x(Length::Shrink)
                                             .center_y(Length::Shrink)
                                         )
@@ -185,65 +189,69 @@ pub fn music_panel_view<'a>(
                                             ..Default::default()
                                         }),
                                     ]
-                                    .spacing(16)
+                                    .spacing(12)
                                     .align_y(Alignment::Center)
-                                )
+                                ]
                                 .width(Length::Fill)
-                                .center_x(Length::Fill)
-                                .padding(iced::padding::top(12))
+                                .padding(iced::padding::left(20).right(15))
+                                .align_x(Alignment::Start)
                             ]
+                            .spacing(0)
+                            .align_y(Alignment::Center)
                             .width(Length::Fill)
-                            .align_x(Alignment::Center)
+                            .padding(iced::padding::all(20))
                         } else {
-                            column![
-                                container(text(""))
-                                    .height(Length::Fill),
-                                
-                                container(
-                                    text("No Music Playing")
-                                        .color(theme.color6)
-                                        .font(font)
-                                        .size(font_size * 1.0)
-                                )
+                            row![
+                                column![
+                                    container(text(""))
+                                        .height(Length::Fill),
+                                    
+                                    container(
+                                        text("No Music Playing")
+                                            .color(theme.color6)
+                                            .font(font)
+                                            .size(font_size * 1.0)
+                                    )
+                                    .width(Length::Fill)
+                                    .center_x(Length::Fill)
+                                    .padding(iced::padding::bottom(10)),
+                                    
+                                    container(
+                                        text("Start playing music in Spotify, YouTube,")
+                                            .color(Color::from_rgba(
+                                                theme.color6.r,
+                                                theme.color6.g,
+                                                theme.color6.b,
+                                                0.5
+                                            ))
+                                            .font(font)
+                                            .size(font_size * 0.7)
+                                    )
+                                    .width(Length::Fill)
+                                    .center_x(Length::Fill)
+                                    .padding(iced::padding::bottom(5)),
+                                    
+                                    container(
+                                        text("or any MPRIS-compatible player")
+                                            .color(Color::from_rgba(
+                                                theme.color6.r,
+                                                theme.color6.g,
+                                                theme.color6.b,
+                                                0.5
+                                            ))
+                                            .font(font)
+                                            .size(font_size * 0.7)
+                                    )
+                                    .width(Length::Fill)
+                                    .center_x(Length::Fill),
+                                    
+                                    container(text(""))
+                                        .height(Length::Fill),
+                                ]
                                 .width(Length::Fill)
-                                .center_x(Length::Fill)
-                                .padding(iced::padding::bottom(10)),
-                                
-                                container(
-                                    text("Start playing music in Spotify, YouTube,")
-                                        .color(Color::from_rgba(
-                                            theme.color6.r,
-                                            theme.color6.g,
-                                            theme.color6.b,
-                                            0.5
-                                        ))
-                                        .font(font)
-                                        .size(font_size * 0.7)
-                                )
-                                .width(Length::Fill)
-                                .center_x(Length::Fill)
-                                .padding(iced::padding::bottom(5)),
-                                
-                                container(
-                                    text("or any MPRIS-compatible player")
-                                        .color(Color::from_rgba(
-                                            theme.color6.r,
-                                            theme.color6.g,
-                                            theme.color6.b,
-                                            0.5
-                                        ))
-                                        .font(font)
-                                        .size(font_size * 0.7)
-                                )
-                                .width(Length::Fill)
-                                .center_x(Length::Fill),
-                                
-                                container(text(""))
-                                    .height(Length::Fill),
+                                .height(Length::Fill)
+                                .align_x(Alignment::Center)
                             ]
-                            .width(Length::Fill)
-                            .height(Length::Fill)
-                            .align_x(Alignment::Center)
                         }
                     )
                     .width(Length::Fill)

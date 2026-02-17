@@ -299,7 +299,7 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             
             std::thread::spawn(|| {
                 let result = std::process::Command::new("systemctl")
-                    .args(["poweroff", "--force", "--force"])
+                    .arg("poweroff")
                     .spawn();
                 if let Err(e) = result {
                     eprintln!("[PowerOff] Failed: {}", e);
@@ -313,7 +313,7 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             
             std::thread::spawn(|| {
                 let result = std::process::Command::new("systemctl")
-                    .args(["reboot", "--force", "--force"])
+                    .arg("reboot")
                     .spawn();
                 if let Err(e) = result {
                     eprintln!("[Restart] Failed: {}", e);
@@ -327,7 +327,7 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             
             std::thread::spawn(|| {
                 let result = std::process::Command::new("systemctl")
-                    .args(["suspend", "--force"])
+                    .arg("suspend")
                     .spawn();
                 if let Err(e) = result {
                     eprintln!("[Suspend] Failed: {}", e);
