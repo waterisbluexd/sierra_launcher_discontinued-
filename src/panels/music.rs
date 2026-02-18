@@ -1,5 +1,5 @@
-use iced::widget::{container, text, stack, row, column, button, slider};
-use iced::{Element, Border, Color, Length, Alignment, Background};
+use iced::widget::{container, text, stack, row, column, button, slider, image};
+use iced::{Element, Border, Color, Length, Alignment, Background, ContentFit};
 use crate::utils::theme::Theme;
 use crate::Message;
 use super::mpris_player::{MusicPlayer};
@@ -23,12 +23,18 @@ pub fn music_panel_view<'a>(
                             row![
                                 // Left side: Thumbnail square
                                 container(
-                                    container(text(""))
+                                    image(image::Handle::from_path(
+                                        music_state.thumbnail_path.as_deref().unwrap_or("")
+                                    ))
+                                    .width(Length::Fill)
+                                    .height(Length::Fill)
+                                    .content_fit(ContentFit::Cover)
                                 )
-                                .width(Length::Fixed(140.0))
-                                .height(Length::Fixed(140.0))
+                                .width(Length::Fixed(180.0))
+                                .height(Length::Fixed(180.0))
+                                .padding(6)
                                 .style(move |_| container::Style {
-                                    background: Some(theme.color5.into()),
+                                    background: None,
                                     border: Border {
                                         color: theme.color3,
                                         width: 2.0,

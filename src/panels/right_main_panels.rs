@@ -37,7 +37,16 @@ pub fn right_main_panels_view<'a>(
     let current_view = match current_panel {
         Panel::Clock => clock::clock_panel_view(theme, bg_with_alpha, font, font_size),
         Panel::Weather => weather_panel.view(theme, bg_with_alpha, font, font_size),
-        Panel::Music => music::music_panel_view(theme, bg_with_alpha, font, font_size, music_player),
+        Panel::Music => {
+            if music_player.state.player_available {
+                music::music_panel_view(theme, bg_with_alpha, font, font_size, music_player)
+            } else {
+                container(text(""))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
+            }
+        }
         Panel::Wallpaper => wallpaper_panel::wallpaper_panel_view(
     theme,
     bg_with_alpha,

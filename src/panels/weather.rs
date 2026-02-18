@@ -373,7 +373,7 @@ impl WeatherPanel {
                         .color(theme.color8)
                         .font(font)
                         .size(font_size),
-                    text(format!("{} km/h {}", weather_clone.wind_speed, weather_clone.wind_dir))
+                    text(format!("{} km/h", weather_clone.wind_speed))
                         .line_height(1.0)
                         .color(theme.foreground)
                         .font(font)

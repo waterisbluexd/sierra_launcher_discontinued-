@@ -10,6 +10,7 @@ pub struct MusicPlayerState {
     pub total_time: f32,
     pub is_playing: bool,
     pub player_available: bool,
+    pub thumbnail_path: Option<String>,
 }
 
 pub struct MusicPlayerInternal {
@@ -29,6 +30,7 @@ impl Default for MusicPlayerState {
             total_time: 0.0,
             is_playing: false,
             player_available: false,
+            thumbnail_path: None,
         }
     }
 }
@@ -87,18 +89,33 @@ impl MusicPlayer {
                 if let Ok(status) = player.get_playback_status() {
                     self.state.app_name = player.identity().to_string();
 
-                    self.state.song_name = metadata.title()
-                        .unwrap_or("Unknown")
-                        .to_string();
+                    self.state.song_name = Self::truncate_text(
+                        metadata.title()
+                            .unwrap_or("Unknown"),
+                        27
+                    );
 
-                    self.state.artist_name = metadata
+                    let artist = metadata
                         .artists()
                         .and_then(|artists| artists.first().map(|s| s.to_string()))
                         .unwrap_or_else(|| "Unknown Artist".to_string());
+                    self.state.artist_name = Self::truncate_text(&artist, 25);
 
                     self.state.total_time = metadata.length()
                         .map(|l| (l.as_micros() as f64 / 1_000_000.0) as f32)
                         .unwrap_or(0.0);
+
+                    // Get thumbnail/artwork URL
+                    self.state.thumbnail_path = metadata.art_url()
+                        .map(|url| {
+                            let url_str = url.to_string();
+                            // Remove "file://" prefix if present
+                            if url_str.starts_with("file://") {
+                                url_str.strip_prefix("file://").unwrap_or(&url_str).to_string()
+                            } else {
+                                url_str
+                            }
+                        });
 
                     let position = if status == PlaybackStatus::Paused {
                         if self.internal.last_status != Some(PlaybackStatus::Paused) {
@@ -132,6 +149,7 @@ impl MusicPlayer {
         self.state.current_time = 0.0;
         self.state.total_time = 0.0;
         self.state.is_playing = false;
+        self.state.thumbnail_path = None;
     }
 
     pub fn format_time(seconds: f32) -> String {
@@ -144,6 +162,14 @@ impl MusicPlayer {
             format!("{}:{:02}:{:02}", hours, minutes, secs)
         } else {
             format!("{}:{:02}", minutes, secs)
+        }
+    }
+
+    fn truncate_text(text: &str, max_len: usize) -> String {
+        if text.len() > max_len {
+            format!("{}...", &text[..max_len - 3])
+        } else {
+            text.to_string()
         }
     }
 

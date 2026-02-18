@@ -185,9 +185,14 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         }
 
         Message::CyclePanel(direction) => {
-            launcher.current_panel = match (launcher.current_panel, direction) {
+            // Get the next panel, skipping Music if no player is available
+            let music_available = launcher.music_player.state.player_available;
+            
+            let mut next_panel = match (launcher.current_panel, direction) {
                 (Panel::Clock, Direction::Right) => Panel::Weather,
-                (Panel::Weather, Direction::Right) => Panel::Music,
+                (Panel::Weather, Direction::Right) => {
+                    if music_available { Panel::Music } else { Panel::Wallpaper }
+                }
                 (Panel::Music, Direction::Right) => Panel::Wallpaper,
                 (Panel::Wallpaper, Direction::Right) => Panel::System,
                 (Panel::System, Direction::Right) => Panel::Services,
@@ -195,10 +200,30 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 (Panel::Clock, Direction::Left) => Panel::Services,
                 (Panel::Services, Direction::Left) => Panel::System,
                 (Panel::System, Direction::Left) => Panel::Wallpaper,
-                (Panel::Wallpaper, Direction::Left) => Panel::Music,
+                (Panel::Wallpaper, Direction::Left) => {
+                    if music_available { Panel::Music } else { Panel::Weather }
+                }
                 (Panel::Music, Direction::Left) => Panel::Weather,
                 (Panel::Weather, Direction::Left) => Panel::Clock,
             };
+            
+            // If we landed on Music but it's not available, skip to the next one
+            if next_panel == Panel::Music && !music_available {
+                next_panel = match direction {
+                    Direction::Right => Panel::Wallpaper,
+                    Direction::Left => Panel::Weather,
+                };
+            }
+            
+            // If current panel is Music but became unavailable, switch away
+            if launcher.current_panel == Panel::Music && !music_available {
+                next_panel = match direction {
+                    Direction::Right => Panel::Wallpaper,
+                    Direction::Left => Panel::Weather,
+                };
+            }
+            
+            launcher.current_panel = next_panel;
             
             if launcher.current_panel == Panel::Services {
                 launcher.services_panel.schedule_refresh();

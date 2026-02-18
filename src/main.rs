@@ -253,14 +253,21 @@ impl DaemonState {
                                 launcher.clipboard_visible = !launcher.clipboard_visible;
                             } else {
                                 eprintln!("[Input] Left - cycling panel left");
+                                let music_available = launcher.music_player.state.player_available;
                                 launcher.current_panel = match launcher.current_panel {
                                     Panel::Clock => Panel::System,
                                     Panel::System => Panel::Services,
                                     Panel::Services => Panel::Wallpaper,
-                                    Panel::Wallpaper => Panel::Music,
+                                    Panel::Wallpaper => {
+                                        if music_available { Panel::Music } else { Panel::Weather }
+                                    }
                                     Panel::Music => Panel::Weather,
                                     Panel::Weather => Panel::Clock,
                                 };
+                                // Skip Music if not available
+                                if launcher.current_panel == Panel::Music && !music_available {
+                                    launcher.current_panel = Panel::Weather;
+                                }
                             }
                         }
                         iced::keyboard::key::Named::ArrowRight => {
@@ -268,9 +275,14 @@ impl DaemonState {
                                 launcher.clipboard_visible = !launcher.clipboard_visible;
                             } else {
                                 eprintln!("[Input] Right - cycling panel right");
+                                let music_available = launcher.music_player.state.player_available;
                                 launcher.current_panel = match launcher.current_panel {
-                                    Panel::Clock => Panel::Weather,
-                                    Panel::Weather => Panel::Music,
+                                    Panel::Clock => {
+                                        if music_available { Panel::Weather } else { Panel::Wallpaper }
+                                    }
+                                    Panel::Weather => {
+                                        if music_available { Panel::Music } else { Panel::Wallpaper }
+                                    }
                                     Panel::Music => Panel::Wallpaper,
                                     Panel::Wallpaper => Panel::Services,
                                     Panel::Services => Panel::System,
