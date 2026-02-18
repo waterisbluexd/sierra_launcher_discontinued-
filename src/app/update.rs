@@ -478,5 +478,10 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::NewInputPanel { .. } => Command::none(),
         Message::RemoveWindow(_) => Command::none(),
         Message::ForgetLastOutput => Command::none(),
+        Message::MouseMoved(_, _) => Command::none(),
+        Message::PopupTick => Command::none(),
+        Message::PopupHoverEnter => Command::none(),
+        Message::PopupHoverExit => Command::none(),
+        Message::CreatePopupWindow => Command::none(),
     }
 }

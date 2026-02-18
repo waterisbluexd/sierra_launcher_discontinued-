@@ -113,3 +113,26 @@ pub fn view(launcher: &Launcher) -> Element<'_, Message> {
     })
     .into()
 }
+
+pub fn popup_view(launcher: &Launcher) -> Element<'_, Message> {
+    let bg = launcher.theme.background;
+    let bg_with_alpha = Color::from_rgb(bg.r, bg.g, bg.b);
+
+    container(
+        text("Popup Panel")
+            .size(20)
+    )
+    .padding(10)
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .style(move |_| container::Style {
+        background: Some(bg_with_alpha.into()),
+        border: Border {
+            color: launcher.theme.border,
+            width: 2.0,
+            radius: 0.0.into(),
+        },
+        ..Default::default()
+    })
+    .into()
+}

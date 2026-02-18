@@ -12,6 +12,7 @@ use crate::panels::services::ServicesPanel;
 use crate::panels::weather::WeatherPanel;
 
 use std::time::Instant;
+use iced::window::Id;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Panel {
@@ -21,6 +22,32 @@ pub enum Panel {
     Wallpaper,
     System,
     Services,
+}
+
+pub struct PopupState {
+    pub visible: bool,
+    pub hover_active: bool,
+    pub last_mouse_y: f32,
+    pub close_timer: Option<Instant>,
+    pub window_id: Option<Id>,
+}
+
+impl PopupState {
+    pub fn new() -> Self {
+        Self {
+            visible: false,
+            hover_active: false,
+            last_mouse_y: -1.0,
+            close_timer: None,
+            window_id: None,
+        }
+    }
+}
+
+impl Default for PopupState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 pub struct Launcher {
@@ -45,6 +72,7 @@ pub struct Launcher {
     pub is_first_frame: bool,
     pub wallpaper_index: Option<WallpaperIndex>,
     pub wallpaper_selected_index: usize,
+    pub popup_state: PopupState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

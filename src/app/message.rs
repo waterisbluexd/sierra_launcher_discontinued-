@@ -6,6 +6,8 @@ use crate::app::state::Direction;
 
 pub const WINDOW_WIDTH: u32 = 484;
 pub const WINDOW_HEIGHT: u32 = 714;
+pub const POPUP_HEIGHT: u32 = 100;
+pub const POPUP_GAP: u32 = 2;
 
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
@@ -47,4 +49,9 @@ pub enum Message {
     AppLaunched,
     Close(Id),
     WindowClosed(Id),
+    MouseMoved(f32, f32),
+    PopupHoverEnter,
+    PopupHoverExit,
+    PopupTick,
+    CreatePopupWindow,
 }

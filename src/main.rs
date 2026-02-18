@@ -4,7 +4,7 @@ mod panels;
 mod app;
 mod ipc;
 
-use app::state::{Launcher, Panel};
+use app::state::{Launcher, Panel, PopupState};
 use app::message::Message;
 use iced_layershell::build_pattern::daemon;
 use iced::{Task as Command, Color, Element};
@@ -21,7 +21,7 @@ use crate::panels::system::SystemPanel;
 use crate::panels::services::ServicesPanel;
 use crate::panels::weather::WeatherPanel;
 use crate::panels::title_color::TitleAnimator;
-use app::message::{WINDOW_WIDTH, WINDOW_HEIGHT};
+use app::message::{WINDOW_WIDTH, WINDOW_HEIGHT, POPUP_HEIGHT, POPUP_GAP};
 use std::time::Instant;
 use std::thread;
 use std::collections::HashMap;
@@ -125,6 +125,7 @@ struct DaemonState {
     config: Config,
     windows: HashMap<Id, Launcher>,
     cached_launcher: Option<Launcher>,
+    popup_launcher: Option<Launcher>,
 }
 
 impl DaemonState {
@@ -136,6 +137,7 @@ impl DaemonState {
                 config,
                 windows: HashMap::new(),
                 cached_launcher: None,
+                popup_launcher: None,
             },
             Command::none(),
         )
@@ -190,6 +192,44 @@ impl DaemonState {
                 })
             }
             
+            Message::CreatePopupWindow => {
+                eprintln!("[Daemon] CreatePopupWindow - creating popup window");
+                
+                if let Some(launcher) = self.windows.values_mut().next() {
+                    if launcher.popup_state.window_id.is_some() {
+                        eprintln!("[Daemon] Popup window already exists");
+                        return Command::none();
+                    }
+                    
+                    let popup_id = Id::unique();
+                    launcher.popup_state.window_id = Some(popup_id);
+                    
+                    // Create popup launcher with same config
+                    let popup_launcher = Self::create_launcher_template(&self.config);
+                    self.popup_launcher = Some(popup_launcher);
+                    
+                    // Position popup above main window with 2px gap
+                    // Main window is at bottom, popup should be above it
+                    let margin_bottom: i32 = 4 + WINDOW_HEIGHT as i32 + POPUP_GAP as i32; // 4 (main margin) + 714 (main height) + 2 (gap)
+                    
+                    return Command::done(Message::NewLayerShell {
+                        settings: NewLayerShellSettings {
+                            size: Some((WINDOW_WIDTH, POPUP_HEIGHT)),
+                            layer: Layer::Overlay,
+                            anchor: Anchor::Bottom,
+                            exclusive_zone: Some(0),
+                            margin: Some((0, 0, margin_bottom, 0)),
+                            keyboard_interactivity: KeyboardInteractivity::OnDemand,
+                            output_option: OutputOption::None,
+                            events_transparent: false,
+                            namespace: Some("sierra_launcher_popup".to_string()),
+                        },
+                        id: popup_id,
+                    });
+                }
+                Command::none()
+            }
+            
             Message::WindowReady => {
                 if let Some(launcher) = self.windows.values_mut().next() {
                     eprintln!("[Daemon] Window ready - focusing search bar");
@@ -209,6 +249,50 @@ impl DaemonState {
                     eprintln!("[Daemon] App launched - closing window {:?}", id);
                     launcher.search_bar.input_value.clear();
                     return iced::window::close(id);
+                }
+                Command::none()
+            }
+            
+            Message::PopupTick => {
+                if let Some(launcher) = self.windows.values_mut().next() {
+                    if launcher.popup_state.visible && !launcher.popup_state.hover_active {
+                        // Start close timer if not already started
+                        if launcher.popup_state.close_timer.is_none() {
+                            launcher.popup_state.close_timer = Some(Instant::now());
+                        } else if let Some(timer_start) = launcher.popup_state.close_timer {
+                            // Check if 1 second has passed
+                            if timer_start.elapsed().as_millis() > 1000 {
+                                eprintln!("[Popup] Auto-closing popup after timeout");
+                                launcher.popup_state.visible = false;
+                                launcher.popup_state.close_timer = None;
+                                
+                                // Close the popup window
+                                if let Some(popup_id) = launcher.popup_state.window_id {
+                                    launcher.popup_state.window_id = None;
+                                    return iced::window::close(popup_id);
+                                }
+                            }
+                        }
+                    } else if launcher.popup_state.visible && launcher.popup_state.hover_active {
+                        // Reset timer when hovering
+                        launcher.popup_state.close_timer = None;
+                    }
+                }
+                Command::none()
+            }
+            
+            Message::PopupHoverEnter => {
+                if let Some(launcher) = self.windows.values_mut().next() {
+                    launcher.popup_state.hover_active = true;
+                    eprintln!("[Popup] Hover enter");
+                }
+                Command::none()
+            }
+            
+            Message::PopupHoverExit => {
+                if let Some(launcher) = self.windows.values_mut().next() {
+                    launcher.popup_state.hover_active = false;
+                    eprintln!("[Popup] Hover exit");
                 }
                 Command::none()
             }
@@ -335,7 +419,39 @@ impl DaemonState {
                 Command::none()
             }
             
-            Message::IcedEvent(_) => Command::none(),
+            Message::IcedEvent(iced::Event::Mouse(mouse_event)) => {
+                if let Some(launcher) = self.windows.values_mut().next() {
+                    match mouse_event {
+                        iced::mouse::Event::CursorMoved { position, .. } => {
+                            let y = position.y;
+                            let threshold = 100.0;
+                            
+                            // Check if mouse is at the top of the window
+                            if y < threshold && !launcher.popup_state.visible {
+                                eprintln!("[Popup] Mouse at top, showing popup");
+                                launcher.popup_state.visible = true;
+                                launcher.popup_state.close_timer = None;
+                                
+                                // Create popup window if not already created
+                                if launcher.popup_state.window_id.is_none() {
+                                    eprintln!("[Popup] Requesting popup window creation");
+                                    return Command::done(Message::CreatePopupWindow);
+                                }
+                            } else if y >= threshold && launcher.popup_state.visible && !launcher.popup_state.hover_active {
+                                // Mouse moved away from top, start close timer if not hovering
+                                if launcher.popup_state.close_timer.is_none() {
+                                    launcher.popup_state.close_timer = Some(Instant::now());
+                                }
+                            }
+                            
+                            // Update last mouse position
+                            launcher.popup_state.last_mouse_y = y;
+                        }
+                        _ => {}
+                    }
+                }
+                Command::none()
+            }
             
             other => {
                 let mut commands = Vec::new();
@@ -348,6 +464,19 @@ impl DaemonState {
     }
     
     fn view(&self, id: Id) -> Element<'_, Message> {
+        // Check if this is the popup window
+        if let Some(launcher) = &self.popup_launcher {
+            // Check if any main window has this popup_id
+            for (_, main_launcher) in &self.windows {
+                if let Some(popup_id) = main_launcher.popup_state.window_id {
+                    if id == popup_id {
+                        return app::view::popup_view(launcher);
+                    }
+                }
+            }
+        }
+        
+        // Regular main window
         if let Some(launcher) = self.windows.get(&id) {
             app::view::view(launcher)
         } else {
@@ -374,7 +503,10 @@ impl DaemonState {
         let music_refresh = iced::time::every(std::time::Duration::from_millis(100))
             .map(|_| Message::MusicRefresh);
         
-        iced::Subscription::batch(vec![ipc_poll, close_events, events, color_check, music_refresh])
+        let popup_tick = iced::time::every(std::time::Duration::from_millis(100))
+            .map(|_| Message::PopupTick);
+        
+        iced::Subscription::batch(vec![ipc_poll, close_events, events, color_check, music_refresh, popup_tick])
     }
     
     fn create_launcher(&self) -> Launcher {
@@ -408,6 +540,7 @@ impl DaemonState {
             is_first_frame: true,
             wallpaper_index: None,
             wallpaper_selected_index: 0,
+            popup_state: PopupState::new(),
         }
     }
 }
