@@ -73,6 +73,7 @@ pub struct Launcher {
     pub wallpaper_index: Option<WallpaperIndex>,
     pub wallpaper_selected_index: usize,
     pub popup_state: PopupState,
+    pub current_workspace: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

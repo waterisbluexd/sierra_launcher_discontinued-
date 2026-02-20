@@ -116,12 +116,22 @@ pub fn view(launcher: &Launcher) -> Element<'_, Message> {
 }
 
 pub fn popup_view(launcher: &Launcher) -> Element<'_, Message> {
+    popup_view_with_workspace(launcher, launcher.current_workspace)
+}
+
+pub fn popup_view_with_workspace(launcher: &Launcher, current_workspace: usize) -> Element<'_, Message> {
     let bg = launcher.theme.background;
     let bg_with_alpha = Color::from_rgb(bg.r, bg.g, bg.b);
     let font = launcher.config.get_font();
     let font_size = launcher.config.font_size.unwrap_or(22.0);
 
-    let content = current_window_manager_view(&launcher.theme, bg_with_alpha, font, font_size);
+    let content = current_window_manager_view(
+        &launcher.theme, 
+        bg_with_alpha, 
+        font, 
+        font_size,
+        current_workspace,
+    );
     
     // Wrap in mouse_area to detect hover enter/exit
     mouse_area(content)

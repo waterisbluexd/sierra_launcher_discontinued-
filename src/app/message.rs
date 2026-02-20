@@ -56,4 +56,6 @@ pub enum Message {
     CreatePopupWindow,
     /// Switch to workspace number (1-based)
     SwitchWorkspace(usize),
+    /// Refresh current workspace from compositor
+    RefreshWorkspace,
 }

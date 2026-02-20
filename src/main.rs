@@ -492,12 +492,16 @@ impl DaemonState {
     
     fn view(&self, id: Id) -> Element<'_, Message> {
         // Check if this is the popup window
-        if let Some(launcher) = &self.popup_launcher {
+        if let Some(popup_launcher) = &self.popup_launcher {
             // Check if any main window has this popup_id
             for (_, main_launcher) in &self.windows {
                 if let Some(popup_id) = main_launcher.popup_state.window_id {
                     if id == popup_id {
-                        return app::view::popup_view(launcher);
+                        // Use main launcher's current_workspace for real-time updates
+                        return app::view::popup_view_with_workspace(
+                            popup_launcher, 
+                            main_launcher.current_workspace,
+                        );
                     }
                 }
             }
@@ -533,7 +537,10 @@ impl DaemonState {
         let popup_tick = iced::time::every(std::time::Duration::from_millis(100))
             .map(|_| Message::PopupTick);
         
-        iced::Subscription::batch(vec![ipc_poll, close_events, events, color_check, music_refresh, popup_tick])
+        let workspace_refresh = iced::time::every(std::time::Duration::from_millis(500))
+            .map(|_| Message::RefreshWorkspace);
+        
+        iced::Subscription::batch(vec![ipc_poll, close_events, events, color_check, music_refresh, popup_tick, workspace_refresh])
     }
     
     fn create_launcher(&self) -> Launcher {
@@ -568,6 +575,7 @@ impl DaemonState {
             wallpaper_index: None,
             wallpaper_selected_index: 0,
             popup_state: PopupState::new(),
+            current_workspace: crate::panels::current_window_manager::get_current_workspace(),
         }
     }
 }
