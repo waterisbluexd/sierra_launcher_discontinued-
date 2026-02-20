@@ -288,22 +288,21 @@ impl DaemonState {
             }
             
             Message::PopupHoverEnter => {
+                eprintln!("[Popup] >>> PopupHoverEnter FIRED <<< (popup is receiving events!)");
                 if let Some(launcher) = self.windows.values_mut().next() {
                     launcher.popup_state.hover_active = true;
                     launcher.popup_state.close_timer = None;  // KEY FIX: cancel close timer
-                    eprintln!("[Popup] Hover enter - cancelling close timer");
+                    eprintln!("[Popup] hover_active=true, close_timer=None");
                 }
                 Command::none()
             }
             
             Message::PopupHoverExit => {
+                eprintln!("[Popup] >>> PopupHoverExit FIRED <<<");
                 if let Some(launcher) = self.windows.values_mut().next() {
                     launcher.popup_state.hover_active = false;
-                    // Start close timer immediately when mouse leaves popup
-                    if launcher.popup_state.close_timer.is_none() {
-                        launcher.popup_state.close_timer = Some(Instant::now());
-                    }
-                    eprintln!("[Popup] Hover exit - starting close timer");
+                    launcher.popup_state.close_timer = Some(Instant::now());
+                    eprintln!("[Popup] hover_active=false, close_timer started");
                 }
                 Command::none()
             }
@@ -435,28 +434,44 @@ impl DaemonState {
                     match mouse_event {
                         iced::mouse::Event::CursorMoved { position, .. } => {
                             let y = position.y;
-                            let threshold = 100.0;
                             
-                            // Check if mouse is at the top of the window
+                            // KEY FIX: When popup exists, CursorMoved events with small y values
+                            // (0..POPUP_HEIGHT) are from the popup window's coordinate space, not main window.
+                            // When popup exists, rely ONLY on PopupHoverEnter/Exit for visibility management.
+                            let popup_exists = launcher.popup_state.window_id.is_some();
+                            
+                            if popup_exists {
+                                // Popup exists - only use CursorMoved to detect when mouse is
+                                // clearly back in main window area (y > POPUP_HEIGHT + margin)
+                                // to start close timer if not hovering popup
+                                if y > 150.0 
+                                    && launcher.popup_state.visible 
+                                    && !launcher.popup_state.hover_active 
+                                {
+                                    if launcher.popup_state.close_timer.is_none() {
+                                        eprintln!("[Popup] Mouse clearly in main window (y={:.0}), start close timer", y);
+                                        launcher.popup_state.close_timer = Some(Instant::now());
+                                    }
+                                }
+                                launcher.popup_state.last_mouse_y = y;
+                                return Command::none();
+                            }
+                            
+                            // No popup exists - normal behavior: show popup when mouse near top
+                            let threshold = 80.0;
+                            
                             if y < threshold && !launcher.popup_state.visible {
-                                eprintln!("[Popup] Mouse at top, showing popup");
+                                eprintln!("[Popup] Mouse at top (y={:.1}), showing popup", y);
                                 launcher.popup_state.visible = true;
                                 launcher.popup_state.close_timer = None;
-                                launcher.popup_state.hover_active = true; // Mouse is already in the popup area
+                                launcher.popup_state.hover_active = true;
                                 
-                                // Create popup window if not already created
                                 if launcher.popup_state.window_id.is_none() {
                                     eprintln!("[Popup] Requesting popup window creation");
                                     return Command::done(Message::CreatePopupWindow);
                                 }
-                            } else if y >= threshold && launcher.popup_state.visible && !launcher.popup_state.hover_active {
-                                // Mouse moved away from top, start close timer if not hovering
-                                if launcher.popup_state.close_timer.is_none() {
-                                    launcher.popup_state.close_timer = Some(Instant::now());
-                                }
                             }
                             
-                            // Update last mouse position
                             launcher.popup_state.last_mouse_y = y;
                         }
                         _ => {}
