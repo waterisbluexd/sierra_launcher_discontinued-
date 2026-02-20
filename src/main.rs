@@ -208,21 +208,13 @@ impl DaemonState {
                     let popup_launcher = Self::create_launcher_template(&self.config);
                     self.popup_launcher = Some(popup_launcher);
                     
-                    // Position popup above main window with 2px gap
-                    // Main window is at bottom, popup should be above it
-                    let margin_bottom: i32 = 4 + WINDOW_HEIGHT as i32 + POPUP_GAP as i32; // 4 (main margin) + 714 (main height) + 2 (gap)
-                    
-                    return Command::done(Message::NewLayerShell {
-                        settings: NewLayerShellSettings {
-                            size: Some((WINDOW_WIDTH, POPUP_HEIGHT)),
-                            layer: Layer::Overlay,
-                            anchor: Anchor::Bottom,
-                            exclusive_zone: Some(0),
-                            margin: Some((0, 0, margin_bottom, 0)),
-                            keyboard_interactivity: KeyboardInteractivity::OnDemand,
-                            output_option: OutputOption::None,
-                            events_transparent: false,
-                            namespace: Some("sierra_launcher_popup".to_string()),
+                    // Use NewPopUp instead of NewLayerShell for proper parent-child relationship
+                    // Position is relative to the parent layer surface
+                    // We want the popup at the top of the main window
+                    return Command::done(Message::NewPopUp {
+                        settings: iced_layershell::actions::IcedNewPopupSettings {
+                            size: (WINDOW_WIDTH, POPUP_HEIGHT),
+                            position: (0, -(POPUP_HEIGHT as i32 + POPUP_GAP as i32)), // Above the main window
                         },
                         id: popup_id,
                     });
@@ -260,8 +252,8 @@ impl DaemonState {
                         if launcher.popup_state.close_timer.is_none() {
                             launcher.popup_state.close_timer = Some(Instant::now());
                         } else if let Some(timer_start) = launcher.popup_state.close_timer {
-                            // Check if 1 second has passed
-                            if timer_start.elapsed().as_millis() > 1000 {
+                            // Check if 500ms has passed (faster response)
+                            if timer_start.elapsed().as_millis() > 500 {
                                 eprintln!("[Popup] Auto-closing popup after timeout");
                                 launcher.popup_state.visible = false;
                                 launcher.popup_state.close_timer = None;
@@ -292,7 +284,11 @@ impl DaemonState {
             Message::PopupHoverExit => {
                 if let Some(launcher) = self.windows.values_mut().next() {
                     launcher.popup_state.hover_active = false;
-                    eprintln!("[Popup] Hover exit");
+                    // Start close timer immediately when mouse leaves popup
+                    if launcher.popup_state.close_timer.is_none() {
+                        launcher.popup_state.close_timer = Some(Instant::now());
+                    }
+                    eprintln!("[Popup] Hover exit - starting close timer");
                 }
                 Command::none()
             }
@@ -431,6 +427,7 @@ impl DaemonState {
                                 eprintln!("[Popup] Mouse at top, showing popup");
                                 launcher.popup_state.visible = true;
                                 launcher.popup_state.close_timer = None;
+                                launcher.popup_state.hover_active = true; // Mouse is already in the popup area
                                 
                                 // Create popup window if not already created
                                 if launcher.popup_state.window_id.is_none() {

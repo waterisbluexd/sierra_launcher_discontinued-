@@ -12,3 +12,4 @@ pub mod system_services;
 pub mod services_bottom_row;
 pub mod clipboard_panel;
 pub mod wallpaper_panel;
+pub mod current_window_manager;

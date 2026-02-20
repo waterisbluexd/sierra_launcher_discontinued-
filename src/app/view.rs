@@ -1,9 +1,10 @@
-use iced::widget::{container, text, stack, row, column};
+use iced::widget::{container, text, stack, row, column, mouse_area};
 use iced::{Element, Border, Color, Length};
 
 use crate::app::state::Launcher;
 use crate::app::message::Message;
 use crate::panels::right_main_panels::right_main_panels_view;
+use crate::panels::current_window_manager::current_window_manager_view;
 
 pub fn view(launcher: &Launcher) -> Element<'_, Message> {
     let bg = launcher.theme.background;
@@ -117,22 +118,14 @@ pub fn view(launcher: &Launcher) -> Element<'_, Message> {
 pub fn popup_view(launcher: &Launcher) -> Element<'_, Message> {
     let bg = launcher.theme.background;
     let bg_with_alpha = Color::from_rgb(bg.r, bg.g, bg.b);
+    let font = launcher.config.get_font();
+    let font_size = launcher.config.font_size.unwrap_or(22.0);
 
-    container(
-        text("Popup Panel")
-            .size(20)
-    )
-    .padding(10)
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .style(move |_| container::Style {
-        background: Some(bg_with_alpha.into()),
-        border: Border {
-            color: launcher.theme.border,
-            width: 2.0,
-            radius: 0.0.into(),
-        },
-        ..Default::default()
-    })
-    .into()
+    let content = current_window_manager_view(&launcher.theme, bg_with_alpha, font, font_size);
+    
+    // Wrap in mouse_area to detect hover enter/exit
+    mouse_area(content)
+        .on_enter(Message::PopupHoverEnter)
+        .on_exit(Message::PopupHoverExit)
+        .into()
 }

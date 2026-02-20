@@ -54,4 +54,6 @@ pub enum Message {
     PopupHoverExit,
     PopupTick,
     CreatePopupWindow,
+    /// Switch to workspace number (1-based)
+    SwitchWorkspace(usize),
 }

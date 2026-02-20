@@ -483,5 +483,6 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::PopupHoverEnter => Command::none(),
         Message::PopupHoverExit => Command::none(),
         Message::CreatePopupWindow => Command::none(),
+        Message::SwitchWorkspace(_) => Command::none(),
     }
 }
