@@ -483,6 +483,27 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::PopupHoverEnter => Command::none(),
         Message::PopupHoverExit => Command::none(),
         Message::CreatePopupWindow => Command::none(),
-        Message::SwitchWorkspace(_) => Command::none(),
+        Message::SwitchWorkspace(num) => {
+            eprintln!("[Workspace] SwitchWorkspace({}) fired!", num);
+            // Use hyprctl / swaymsg depending on your compositor
+            std::thread::spawn(move || {
+                // Hyprland:
+                let result = std::process::Command::new("hyprctl")
+                    .args(["dispatch", "workspace", &num.to_string()])
+                    .output();
+                match result {
+                    Ok(o) => eprintln!("[Workspace] hyprctl output: {}", 
+                        String::from_utf8_lossy(&o.stdout)),
+                    Err(e) => {
+                        eprintln!("[Workspace] hyprctl failed: {}, trying swaymsg", e);
+                        // Sway fallback:
+                        let _ = std::process::Command::new("swaymsg")
+                            .args(["workspace", &num.to_string()])
+                            .output();
+                    }
+                }
+            });
+            Command::none()
+        }
     }
 }

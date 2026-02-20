@@ -193,7 +193,7 @@ impl DaemonState {
             }
             
             Message::CreatePopupWindow => {
-                eprintln!("[Daemon] CreatePopupWindow - creating popup window");
+                eprintln!("[Daemon] CreatePopupWindow - creating popup window as layer shell");
                 
                 if let Some(launcher) = self.windows.values_mut().next() {
                     if launcher.popup_state.window_id.is_some() {
@@ -208,13 +208,27 @@ impl DaemonState {
                     let popup_launcher = Self::create_launcher_template(&self.config);
                     self.popup_launcher = Some(popup_launcher);
                     
-                    // Use NewPopUp instead of NewLayerShell for proper parent-child relationship
-                    // Position is relative to the parent layer surface
-                    // We want the popup at the top of the main window
-                    return Command::done(Message::NewPopUp {
-                        settings: iced_layershell::actions::IcedNewPopupSettings {
-                            size: (WINDOW_WIDTH, POPUP_HEIGHT),
-                            position: (0, -(POPUP_HEIGHT as i32 + POPUP_GAP as i32)), // Above the main window
+                    // Use NewLayerShell so the popup receives mouse events properly.
+                    // xdg-popup (NewPopUp) does not reliably receive input on wlroots compositors.
+                    return Command::done(Message::NewLayerShell {
+                        settings: NewLayerShellSettings {
+                            size: Some((WINDOW_WIDTH, POPUP_HEIGHT)),
+                            layer: Layer::Overlay,
+                            anchor: Anchor::Bottom,
+                            exclusive_zone: Some(0),
+                            // Position it above the main window:
+                            // main window has margin bottom=4, height=WINDOW_HEIGHT
+                            // popup sits above that with a small gap
+                            margin: Some((
+                                0,
+                                0,
+                                (WINDOW_HEIGHT + 4 + POPUP_GAP) as i32,  // bottom margin pushes it up above main window
+                                0,
+                            )),
+                            keyboard_interactivity: KeyboardInteractivity::OnDemand,
+                            output_option: OutputOption::None,
+                            events_transparent: false,  // MUST be false to receive mouse events
+                            namespace: Some("sierra_launcher_popup".to_string()),
                         },
                         id: popup_id,
                     });
@@ -252,8 +266,8 @@ impl DaemonState {
                         if launcher.popup_state.close_timer.is_none() {
                             launcher.popup_state.close_timer = Some(Instant::now());
                         } else if let Some(timer_start) = launcher.popup_state.close_timer {
-                            // Check if 500ms has passed (faster response)
-                            if timer_start.elapsed().as_millis() > 500 {
+                            // Check if 1000ms has passed (give time for hover enter to cancel)
+                            if timer_start.elapsed().as_millis() > 1000 {
                                 eprintln!("[Popup] Auto-closing popup after timeout");
                                 launcher.popup_state.visible = false;
                                 launcher.popup_state.close_timer = None;
@@ -276,7 +290,8 @@ impl DaemonState {
             Message::PopupHoverEnter => {
                 if let Some(launcher) = self.windows.values_mut().next() {
                     launcher.popup_state.hover_active = true;
-                    eprintln!("[Popup] Hover enter");
+                    launcher.popup_state.close_timer = None;  // KEY FIX: cancel close timer
+                    eprintln!("[Popup] Hover enter - cancelling close timer");
                 }
                 Command::none()
             }

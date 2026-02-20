@@ -20,10 +20,10 @@ pub fn current_window_manager_view<'a>(
         title,
         Space::new().height(Length::Fixed(10.0)),
         row![
-            workspace_button(theme, font, font_size, "1", true),
-            workspace_button(theme, font, font_size, "2", false),
-            workspace_button(theme, font, font_size, "3", false),
-            workspace_button(theme, font, font_size, "4", false),
+            workspace_button(theme, font, font_size, "1", 1, true),
+            workspace_button(theme, font, font_size, "2", 2, false),
+            workspace_button(theme, font, font_size, "3", 3, false),
+            workspace_button(theme, font, font_size, "4", 4, false),
         ]
         .spacing(8)
         .align_y(alignment::Vertical::Center),
@@ -54,6 +54,7 @@ fn workspace_button<'a>(
     font: iced::Font,
     font_size: f32,
     label: &'a str,
+    workspace_num: usize,
     active: bool,
 ) -> Element<'a, Message> {
     let bg_color = if active {
@@ -73,6 +74,7 @@ fn workspace_button<'a>(
     .padding(8)
     .width(Length::Fixed(40.0))
     .height(Length::Fixed(40.0))
+    .on_press(Message::SwitchWorkspace(workspace_num))
     .style(move |_, _| button::Style {
         background: Some(bg_color.into()),
         border: Border {
