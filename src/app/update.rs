@@ -485,31 +485,11 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::CreatePopupWindow => Command::none(),
         Message::SwitchWorkspace(num) => {
             eprintln!("[Workspace] SwitchWorkspace({}) fired!", num);
-            // Update current workspace in state
             launcher.current_workspace = num;
-            // Use hyprctl / swaymsg depending on your compositor
-            let num_clone = num;
-            std::thread::spawn(move || {
-                // Hyprland:
-                let result = std::process::Command::new("hyprctl")
-                    .args(["dispatch", "workspace", &num_clone.to_string()])
-                    .output();
-                match result {
-                    Ok(o) => eprintln!("[Workspace] hyprctl output: {}", 
-                        String::from_utf8_lossy(&o.stdout)),
-                    Err(e) => {
-                        eprintln!("[Workspace] hyprctl failed: {}, trying swaymsg", e);
-                        // Sway fallback:
-                        let _ = std::process::Command::new("swaymsg")
-                            .args(["workspace", &num_clone.to_string()])
-                            .output();
-                    }
-                }
-            });
+            crate::panels::current_window_manager::switch_workspace(num);
             Command::none()
         }
         Message::RefreshWorkspace => {
-            // Update current workspace from compositor
             launcher.current_workspace = crate::panels::current_window_manager::get_current_workspace();
             Command::none()
         }
