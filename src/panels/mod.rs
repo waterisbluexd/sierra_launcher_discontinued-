@@ -1,16 +1,19 @@
-pub mod title_color;
-pub mod right_main_panels;
-pub mod search_bar;
-pub mod app_list;
-pub mod clock;
-pub mod weather;
-pub mod music;
-pub mod mpris_player;
+// Main panels (app list, search)
+pub mod main;
+
+// Media panels (music, mpris player)
+pub mod media;
+
+// System panels (system info, services)
 pub mod system;
-pub mod services;
-pub mod system_services;
-pub mod services_bottom_row;
+
+// Workspace management (window manager)
+pub mod workspace;
+
+// Standalone panels
 pub mod clipboard_panel;
+pub mod clock;
+pub mod right_main_panels;
+pub mod title_color;
 pub mod wallpaper_panel;
-pub mod current_window_manager;
-pub mod current_window_manager_ui;
+pub mod weather;

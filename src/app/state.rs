@@ -4,11 +4,11 @@ use crate::utils::theme::Theme;
 use crate::utils::watcher::ColorWatcher;
 use crate::utils::wallpaper_manager::WallpaperIndex;
 use crate::config::Config;
-use crate::panels::search_bar::SearchBar;
-use crate::panels::app_list::AppList;
-use crate::panels::mpris_player::MusicPlayer;
-use crate::panels::system::SystemPanel;
-use crate::panels::services::ServicesPanel;
+use crate::panels::main::search_bar::SearchBar;
+use crate::panels::main::app_list::AppList;
+use crate::panels::media::mpris_player::MusicPlayer;
+use crate::panels::system::system::SystemPanel;
+use crate::panels::system::services::ServicesPanel;
 use crate::panels::weather::WeatherPanel;
 
 use std::time::Instant;

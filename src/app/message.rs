@@ -1,7 +1,7 @@
 use iced::Event;
 use iced::window::Id;
 use iced_layershell::to_layer_message;
-use crate::panels::{search_bar, app_list};
+use crate::panels::main::{search_bar, app_list};
 use crate::app::state::Direction;
 
 pub const WINDOW_WIDTH: u32 = 484;

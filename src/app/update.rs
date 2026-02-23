@@ -6,7 +6,7 @@ use iced::mouse;
 
 use crate::app::state::{Launcher, Panel, Direction};
 use crate::app::message::Message;
-use crate::panels::{search_bar, app_list};
+use crate::panels::main::{search_bar, app_list};
 use crate::utils::watcher::ColorWatcher; 
 use std::time::{Duration, Instant};
 
@@ -486,11 +486,11 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
         Message::SwitchWorkspace(num) => {
             eprintln!("[Workspace] SwitchWorkspace({}) fired!", num);
             launcher.current_workspace = num;
-            crate::panels::current_window_manager::switch_workspace(num);
+            crate::panels::workspace::switch_workspace(num);
             Command::none()
         }
         Message::RefreshWorkspace => {
-            launcher.current_workspace = crate::panels::current_window_manager::get_current_workspace();
+            launcher.current_workspace = crate::panels::workspace::get_current_workspace();
             Command::none()
         }
     }

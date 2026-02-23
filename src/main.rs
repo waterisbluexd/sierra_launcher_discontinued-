@@ -14,11 +14,11 @@ use iced::window::Id;
 use crate::utils::theme::Theme;
 use crate::utils::wallpaper_manager::WallpaperManager;
 use crate::config::Config;
-use crate::panels::search_bar::SearchBar;
-use crate::panels::app_list::{AppList, self};
-use crate::panels::mpris_player::MusicPlayer;
-use crate::panels::system::SystemPanel;
-use crate::panels::services::ServicesPanel;
+use crate::panels::main::search_bar::SearchBar;
+use crate::panels::main::app_list::{AppList, self};
+use crate::panels::media::mpris_player::MusicPlayer;
+use crate::panels::system::system::SystemPanel;
+use crate::panels::system::services::ServicesPanel;
 use crate::panels::weather::WeatherPanel;
 use crate::panels::title_color::TitleAnimator;
 use app::message::{WINDOW_WIDTH, WINDOW_HEIGHT, POPUP_HEIGHT, POPUP_GAP};
@@ -61,7 +61,7 @@ fn main() -> Result<(), iced_layershell::Error> {
     
     thread::spawn(|| {
         let t = Instant::now();
-        crate::panels::app_list::prewarm_cache();
+        crate::panels::main::app_list::prewarm_cache();
         eprintln!("[Background] App cache pre-warmed: {:?}", t.elapsed());
     });
     
@@ -349,7 +349,7 @@ impl DaemonState {
             })) => {
                 if let Some((id, launcher)) = self.windows.iter_mut().next() {
                     eprintln!("[Input] Enter pressed - launching app");
-                    let _ = launcher.app_list.update(panels::app_list::Message::LaunchSelected);
+                    let _ = launcher.app_list.update(panels::main::app_list::Message::LaunchSelected);
                     launcher.search_bar.input_value.clear();
                     return iced::window::close(*id);
                 }
@@ -412,14 +412,14 @@ impl DaemonState {
                                     launcher.clipboard_selected_index -= 1;
                                 }
                             } else {
-                                let _ = launcher.app_list.update(panels::app_list::Message::ArrowUp);
+                                let _ = launcher.app_list.update(panels::main::app_list::Message::ArrowUp);
                             }
                         }
                         iced::keyboard::key::Named::ArrowDown => {
                             if launcher.clipboard_visible {
                                 launcher.clipboard_selected_index += 1;
                             } else {
-                                let _ = launcher.app_list.update(panels::app_list::Message::ArrowDown);
+                                let _ = launcher.app_list.update(panels::main::app_list::Message::ArrowDown);
                             }
                         }
                         _ => {}
@@ -597,7 +597,7 @@ impl DaemonState {
             wallpaper_index: None,
             wallpaper_selected_index: 0,
             popup_state: PopupState::new(),
-            current_workspace: crate::panels::current_window_manager::get_current_workspace(),
+            current_workspace: crate::panels::workspace::current_window_manager::get_current_workspace(),
         }
     }
 }

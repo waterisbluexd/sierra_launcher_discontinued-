@@ -4,7 +4,7 @@ use iced::{Element, Border, Color, Length};
 use crate::app::state::Launcher;
 use crate::app::message::Message;
 use crate::panels::right_main_panels::right_main_panels_view;
-use crate::panels::current_window_manager_ui::current_window_manager_view;
+use crate::panels::workspace::current_window_manager_view;
 
 pub fn view(launcher: &Launcher) -> Element<'_, Message> {
     let bg = launcher.theme.background;
