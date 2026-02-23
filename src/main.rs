@@ -151,6 +151,25 @@ impl DaemonState {
         match message {
             Message::WindowClosed(id) => {
                 eprintln!("[Daemon] Window closed: {:?}", id);
+                
+                // Check if this is the popup window closing
+                let is_popup = self.windows.values().any(|launcher| {
+                    launcher.popup_state.window_id == Some(id)
+                });
+                
+                if is_popup {
+                    eprintln!("[Daemon] Popup window closed, cleaning up popup state");
+                    if let Some(launcher) = self.windows.values_mut().next() {
+                        launcher.popup_state.window_id = None;
+                        launcher.popup_state.visible = false;
+                        launcher.popup_state.hover_active = false;
+                        launcher.popup_state.close_timer = None;
+                    }
+                    self.popup_launcher = None;
+                    return Command::none();
+                }
+                
+                // Main window closing
                 if let Some(launcher) = self.windows.remove(&id) {
                     let mut cached = launcher;
                     cached.search_bar.input_value.clear();
@@ -159,8 +178,11 @@ impl DaemonState {
                     cached.is_first_frame = true;
                     cached.current_panel = Panel::Clock;
                     cached.clipboard_selected_index = 0;
+                    // Clean up any popup state
+                    cached.popup_state = PopupState::default();
                     self.cached_launcher = Some(cached);
                 }
+                self.popup_launcher = None;
                 Command::none()
             }
             

@@ -1,4 +1,4 @@
-use iced::widget::{container, text, row, column, button, Space};
+use iced::widget::{container, text, row, button};
 use iced::{Element, Border, Color, Length, alignment};
 use crate::utils::theme::Theme;
 use crate::Message;
@@ -12,31 +12,27 @@ pub fn current_window_manager_view<'a>(
     font_size: f32,
     current_workspace: usize,
 ) -> Element<'a, Message> {
-    let title = text("Window Manager")
-        .color(theme.color6)
-        .font(font)
-        .size(font_size * 1.2);
-
-    let content = column![
-        title,
-        Space::new().height(Length::Fixed(10.0)),
-        row![
-            workspace_button(theme, font, font_size, "1", 1, current_workspace == 1),
-            workspace_button(theme, font, font_size, "2", 2, current_workspace == 2),
-            workspace_button(theme, font, font_size, "3", 3, current_workspace == 3),
-            workspace_button(theme, font, font_size, "4", 4, current_workspace == 4),
-        ]
-        .spacing(8)
-        .align_y(alignment::Vertical::Center),
+    // Show 8 workspaces
+    let buttons_row = row![
+        workspace_button(theme, font, font_size, 1, current_workspace == 1),
+        workspace_button(theme, font, font_size, 2, current_workspace == 2),
+        workspace_button(theme, font, font_size, 3, current_workspace == 3),
+        workspace_button(theme, font, font_size, 4, current_workspace == 4),
+        workspace_button(theme, font, font_size, 5, current_workspace == 5),
+        workspace_button(theme, font, font_size, 6, current_workspace == 6),
+        workspace_button(theme, font, font_size, 7, current_workspace == 7),
+        workspace_button(theme, font, font_size, 8, current_workspace == 8),
     ]
-    .spacing(10)
-    .align_x(alignment::Horizontal::Center)
-    .width(Length::Fill);
+    .spacing(4)
+    .align_y(alignment::Vertical::Center)
+    .width(Length::Shrink);
 
-    container(content)
-        .padding(15)
+    container(buttons_row)
         .width(Length::Fill)
         .height(Length::Fill)
+        .padding(iced::padding::horizontal(8))
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
         .style(move |_| container::Style {
             background: Some(bg_with_alpha.into()),
             border: Border {
@@ -49,80 +45,97 @@ pub fn current_window_manager_view<'a>(
         .into()
 }
 
-/// Create a workspace button with hover effects
+/// Create a workspace button - expanded with label if active, small box otherwise
 fn workspace_button<'a>(
     theme: &'a Theme,
     font: iced::Font,
     font_size: f32,
-    label: &'a str,
     workspace_num: usize,
     active: bool,
 ) -> Element<'a, Message> {
-    let btn = button(
-        text(label)
-            .color(theme.color6)
-            .font(font)
-            .size(font_size)
-            .align_x(alignment::Horizontal::Center)
-            .align_y(alignment::Vertical::Center),
-    )
-    .padding(8)
-    .width(Length::Fixed(40.0))
-    .height(Length::Fixed(40.0))
-    .on_press(Message::SwitchWorkspace(workspace_num))
-    .style(move |_, status| {
-        let (bg_color, border_color, border_width) = match status {
-            button::Status::Hovered => {
-                if active {
-                    (
-                        Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.7),
-                        theme.color6,
-                        2.5,
-                    )
-                } else {
-                    (
-                        Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.4),
-                        theme.color6,
-                        1.5,
-                    )
-                }
-            }
-            button::Status::Pressed => {
-                (
+    if active {
+        // Active workspace: expanded with "Workspace - N" label
+        let label = format!(" Workspace - {} ", workspace_num);
+        button(
+            text(label)
+                .color(theme.color6)
+                .font(font)
+                .size(font_size * 0.85)
+                .align_x(alignment::Horizontal::Center)
+                .align_y(alignment::Vertical::Center),
+        )
+        .padding(iced::padding::horizontal(4))
+        .height(Length::Fixed(22.0))
+        .on_press(Message::SwitchWorkspace(workspace_num))
+        .style(move |_, status| {
+            let (bg_color, border_color, border_width) = match status {
+                button::Status::Hovered => (
+                    Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.7),
+                    theme.color6,
+                    2.0,
+                ),
+                button::Status::Pressed => (
                     Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.8),
                     theme.color6,
                     2.0,
-                )
+                ),
+                _ => (
+                    Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.5),
+                    theme.color6,
+                    2.0,
+                ),
+            };
+            
+            button::Style {
+                background: Some(bg_color.into()),
+                border: Border {
+                    color: border_color,
+                    width: border_width,
+                    radius: 0.0.into(),
+                },
+                ..Default::default()
             }
-            _ => {
-                if active {
-                    (
-                        Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.5),
-                        theme.color6,
-                        2.0,
-                    )
-                } else {
-                    (
-                        Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.2),
-                        theme.color3,
-                        1.0,
-                    )
-                }
+        })
+        .into()
+    } else {
+        // Inactive workspace: small box without label
+        button(
+            text("")  // Empty button
+        )
+        .width(Length::Fixed(30.0))
+        .height(Length::Fixed(22.0))
+        .on_press(Message::SwitchWorkspace(workspace_num))
+        .style(move |_, status| {
+            let (bg_color, border_color, border_width) = match status {
+                button::Status::Hovered => (
+                    Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.4),
+                    theme.color6,
+                    1.5,
+                ),
+                button::Status::Pressed => (
+                    Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.6),
+                    theme.color6,
+                    2.0,
+                ),
+                _ => (
+                    Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.2),
+                    theme.color3,
+                    1.0,
+                ),
+            };
+            
+            button::Style {
+                background: Some(bg_color.into()),
+                border: Border {
+                    color: border_color,
+                    width: border_width,
+                    radius: 0.0.into(),
+                },
+                ..Default::default()
             }
-        };
-        
-        button::Style {
-            background: Some(bg_color.into()),
-            border: Border {
-                color: border_color,
-                width: border_width,
-                radius: 4.0.into(),
-            },
-            ..Default::default()
-        }
-    });
-
-    btn.into()
+        })
+        .into()
+    }
 }
 
 /// Get the current workspace from Hyprland/Sway
@@ -170,3 +183,4 @@ pub fn get_current_workspace() -> usize {
     // Default to workspace 1
     1
 }
+

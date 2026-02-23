@@ -6,6 +6,7 @@ pub fn subscription() -> Subscription<Message> {
     let events = event::listen().map(Message::IcedEvent);
     let frames = window::frames().map(|_| Message::CheckColors);
     let music_refresh = window::frames().map(|_| Message::MusicRefresh);
+    let popup_tick = window::frames().map(|_| Message::PopupTick);
     
     let ipc_poll = window::frames()
         .filter_map(|_| {
@@ -16,5 +17,5 @@ pub fn subscription() -> Subscription<Message> {
             }
         });
 
-    Subscription::batch(vec![events, frames, music_refresh, ipc_poll])
+    Subscription::batch(vec![events, frames, music_refresh, ipc_poll, popup_tick])
 }

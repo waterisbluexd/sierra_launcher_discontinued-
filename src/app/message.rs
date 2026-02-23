@@ -6,8 +6,8 @@ use crate::app::state::Direction;
 
 pub const WINDOW_WIDTH: u32 = 484;
 pub const WINDOW_HEIGHT: u32 = 714;
-pub const POPUP_HEIGHT: u32 = 100;
-pub const POPUP_GAP: u32 = 4;
+pub const POPUP_HEIGHT: u32 = 32;
+pub const POPUP_GAP: u32 = 3;
 
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
