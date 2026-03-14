@@ -135,9 +135,20 @@ font_size = 14.0
 # Options: bottom, top, left, right, center, top-left, top-right, bottom-left, bottom-right
 location = "bottom"
 
+# X and Y offset (margin from edges in pixels)
+# These work with the location setting to fine-tune positioning
+# x: left/right margin (for left/right/center positions)
+# y: top/bottom margin (for top/bottom/center positions)
+x = 0
+y = 4
+
 # Title Animation
 title_text = " sierra-launcher "
 title_animation = "Wave"  # Options: Rainbow, Wave, InOutWave, Pulse, Sparkle, Gradient
+
+# Title Animation Speed (in milliseconds - lower is faster)
+# Default: 80
+title_animation_speed = 80
 
 # Wallpaper Directory
 wallpaper_dir = "~/Pictures/Wallpapers"
@@ -173,6 +184,15 @@ color13 = "#bb9af7"
 color14 = "#7dcfff"
 color15 = "#c0caf5"
 ```
+
+### Configuration Options Explained
+
+| Option | Description | Example Values |
+|--------|-------------|----------------|
+| `location` | Position of launcher on screen | `bottom`, `top`, `left`, `right`, `center`, `top-left`, `top-right`, `bottom-left`, `bottom-right` |
+| `x` | Horizontal offset (pixels from left/right edge) | `0`, `100`, `200` |
+| `y` | Vertical offset (pixels from top/bottom edge) | `0`, `4`, `100` |
+| `title_animation_speed` | Animation speed (lower = faster, in milliseconds) | `40`, `80`, `160` |
 ---
 ### Keyboard Shortcuts
 

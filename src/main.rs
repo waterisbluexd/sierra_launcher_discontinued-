@@ -104,7 +104,7 @@ fn main() -> Result<(), iced_layershell::Error> {
             size: None,
             anchor: config.get_anchor(),
             keyboard_interactivity: KeyboardInteractivity::OnDemand,
-            margin: (0, 0, 4, 0),
+            margin: config.get_margin(),
             start_mode: StartMode::Background,
             ..Default::default()
         },
@@ -204,7 +204,7 @@ impl DaemonState {
                         layer: Layer::Overlay,
                         anchor: self.config.get_anchor(),
                         exclusive_zone: Some(0),
-                        margin: Some((0, 0, 4, 0)),
+                        margin: Some(self.config.get_margin()),
                         keyboard_interactivity: KeyboardInteractivity::OnDemand,
                         output_option: OutputOption::None,
                         events_transparent: false,
@@ -238,13 +238,11 @@ impl DaemonState {
                             layer: Layer::Overlay,
                             anchor: self.config.get_anchor(),
                             exclusive_zone: Some(0),
-                            // Position it above the main window:
-                            // main window has margin bottom=4, height=WINDOW_HEIGHT
-                            // popup sits above that with a small gap
+                            // Position it relative to the main window based on anchor
                             margin: Some((
                                 0,
                                 0,
-                                (WINDOW_HEIGHT + 4 + POPUP_GAP) as i32,  // bottom margin pushes it up above main window
+                                (WINDOW_HEIGHT + 4 + POPUP_GAP) as i32,  // bottom margin
                                 0,
                             )),
                             keyboard_interactivity: KeyboardInteractivity::OnDemand,
@@ -589,7 +587,7 @@ impl DaemonState {
             frame_count: 0,
             title_animator: TitleAnimator::new()
                 .with_mode(config.get_animation_mode())
-                .with_speed(80),
+                .with_speed(config.title_animation_speed as u64),
             control_center_visible: false,
             clipboard_visible: false,
             clipboard_selected_index: 0,

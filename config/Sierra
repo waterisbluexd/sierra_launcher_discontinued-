@@ -1,6 +1,17 @@
 font = "Monocraft"
 font_size = 14.0
 
-# Launcher location on screen
+# Launcher Location
 # Options: bottom, top, left, right, center, top-left, top-right, bottom-left, bottom-right
-location = "bottom"
+location = "bottom-left"
+
+# X and Y offset (margin from edges)
+# These work with the location setting to fine-tune positioning
+# x: left/right margin (for left/right/center positions)
+# y: top/bottom margin (for top/bottom/center positions)
+x = 100
+y = 100
+
+# Title Animation Speed (in milliseconds - lower is faster)
+# Default: 80 (lower = faster animation)
+title_animation_speed = 80

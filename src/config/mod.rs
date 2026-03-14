@@ -12,9 +12,12 @@ pub struct ConfigFile {
     pub theme: Option<ThemeConfig>,
     pub title_text: Option<String>,
     pub title_animation: Option<String>,
+    pub title_animation_speed: Option<f32>,
     pub wallpaper_dir: Option<String>,
     pub weather_location: Option<String>,
     pub location: Option<String>,
+    pub x: Option<i32>,
+    pub y: Option<i32>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -49,9 +52,12 @@ pub struct Config {
     pub custom_theme: Option<ThemeConfig>,
     pub title_text: String,
     pub title_animation: String,
+    pub title_animation_speed: f32,
     pub wallpaper_dir: Option<PathBuf>,
     pub weather_location: Option<String>,
     pub location: String,
+    pub x: Option<i32>,
+    pub y: Option<i32>,
 }
 
 impl Config {
@@ -83,11 +89,16 @@ impl Config {
             title_animation: config_file
                 .title_animation
                 .unwrap_or_else(|| "Wave".to_string()),
+            title_animation_speed: config_file
+                .title_animation_speed
+                .unwrap_or(80.0),
             wallpaper_dir,
             weather_location: config_file.weather_location,
             location: config_file
                 .location
                 .unwrap_or_else(|| "bottom".to_string()),
+            x: config_file.x,
+            y: config_file.y,
         }
     }
 
@@ -106,9 +117,12 @@ impl Config {
             theme: None,
             title_text: Some(" sierra-launcher ".to_string()),
             title_animation: Some("Wave".to_string()),
+            title_animation_speed: Some(80.0),
             wallpaper_dir: Some("~/Pictures/Wallpapers".to_string()),
             weather_location: None,
             location: Some("bottom".to_string()),
+            x: None,
+            y: None,
         }
     }
 
@@ -159,6 +173,27 @@ impl Config {
         }
     }
 
+    /// Returns margin as (left, right, top, bottom)
+    /// x corresponds to left/right margin, y corresponds to top/bottom margin
+    pub fn get_margin(&self) -> (i32, i32, i32, i32) {
+        let location = self.location.to_lowercase();
+        let x = self.x.unwrap_or(0);
+        let y = self.y.unwrap_or(4); // default bottom margin
+        
+        match location.as_str() {
+            "top" => (0, 0, y, 0),
+            "bottom" => (0, 0, 0, y),
+            "left" => (x, 0, 0, 0),
+            "right" => (0, x, 0, 0),
+            "center" => (x, x, y, y),
+            "top-left" => (x, 0, y, 0),
+            "top-right" => (0, x, y, 0),
+            "bottom-left" => (x, 0, 0, y),
+            "bottom-right" => (0, x, 0, y),
+            _ => (0, 0, 0, y), // default bottom
+        }
+    }
+
     pub fn hex_to_color(hex: &str) -> Color {
         let hex = hex.trim_start_matches('#');
         if hex.len() == 6 {
@@ -187,9 +222,12 @@ impl Default for Config {
             custom_theme: None,
             title_text: " sierra-launcher ".to_string(),
             title_animation: "Wave".to_string(),
+            title_animation_speed: 80.0,
             wallpaper_dir: None,
             weather_location: None,
             location: "bottom".to_string(),
+            x: None,
+            y: None,
         }
     }
 }
