@@ -131,6 +131,10 @@ Configuration file: `~/.config/sierra/Sierra`
 font = "Monospace"
 font_size = 14.0
 
+# Launcher Location (where the launcher appears on screen)
+# Options: bottom, top, left, right, center, top-left, top-right, bottom-left, bottom-right
+location = "bottom"
+
 # Title Animation
 title_text = " sierra-launcher "
 title_animation = "Wave"  # Options: Rainbow, Wave, InOutWave, Pulse, Sparkle, Gradient

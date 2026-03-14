@@ -102,7 +102,7 @@ fn main() -> Result<(), iced_layershell::Error> {
     .settings(Settings {
         layer_settings: LayerShellSettings {
             size: None,
-            anchor: Anchor::Bottom,
+            anchor: config.get_anchor(),
             keyboard_interactivity: KeyboardInteractivity::OnDemand,
             margin: (0, 0, 4, 0),
             start_mode: StartMode::Background,
@@ -202,7 +202,7 @@ impl DaemonState {
                     settings: NewLayerShellSettings {
                         size: Some((WINDOW_WIDTH, WINDOW_HEIGHT)),
                         layer: Layer::Overlay,
-                        anchor: Anchor::Bottom,
+                        anchor: self.config.get_anchor(),
                         exclusive_zone: Some(0),
                         margin: Some((0, 0, 4, 0)),
                         keyboard_interactivity: KeyboardInteractivity::OnDemand,
@@ -236,7 +236,7 @@ impl DaemonState {
                         settings: NewLayerShellSettings {
                             size: Some((WINDOW_WIDTH, POPUP_HEIGHT)),
                             layer: Layer::Overlay,
-                            anchor: Anchor::Bottom,
+                            anchor: self.config.get_anchor(),
                             exclusive_zone: Some(0),
                             // Position it above the main window:
                             // main window has margin bottom=4, height=WINDOW_HEIGHT

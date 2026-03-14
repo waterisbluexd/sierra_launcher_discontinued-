@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
 use iced::{Font, Color};
+use iced_layer_shell::Anchor;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ConfigFile {
@@ -13,6 +14,7 @@ pub struct ConfigFile {
     pub title_animation: Option<String>,
     pub wallpaper_dir: Option<String>,
     pub weather_location: Option<String>,
+    pub location: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -49,6 +51,7 @@ pub struct Config {
     pub title_animation: String,
     pub wallpaper_dir: Option<PathBuf>,
     pub weather_location: Option<String>,
+    pub location: String,
 }
 
 impl Config {
@@ -82,6 +85,9 @@ impl Config {
                 .unwrap_or_else(|| "Wave".to_string()),
             wallpaper_dir,
             weather_location: config_file.weather_location,
+            location: config_file
+                .location
+                .unwrap_or_else(|| "bottom".to_string()),
         }
     }
 
@@ -102,6 +108,7 @@ impl Config {
             title_animation: Some("Wave".to_string()),
             wallpaper_dir: Some("~/Pictures/Wallpapers".to_string()),
             weather_location: None,
+            location: Some("bottom".to_string()),
         }
     }
 
@@ -137,6 +144,21 @@ impl Config {
         }
     }
 
+    pub fn get_anchor(&self) -> Anchor {
+        match self.location.to_lowercase().as_str() {
+            "top" => Anchor::Top,
+            "bottom" => Anchor::Bottom,
+            "left" => Anchor::Left,
+            "right" => Anchor::Right,
+            "center" => Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
+            "top-left" => Anchor::Top | Anchor::Left,
+            "top-right" => Anchor::Top | Anchor::Right,
+            "bottom-left" => Anchor::Bottom | Anchor::Left,
+            "bottom-right" => Anchor::Bottom | Anchor::Right,
+            _ => Anchor::Bottom,
+        }
+    }
+
     pub fn hex_to_color(hex: &str) -> Color {
         let hex = hex.trim_start_matches('#');
         if hex.len() == 6 {
@@ -167,6 +189,7 @@ impl Default for Config {
             title_animation: "Wave".to_string(),
             wallpaper_dir: None,
             weather_location: None,
+            location: "bottom".to_string(),
         }
     }
 }

@@ -1,2 +1,6 @@
 font = "Monocraft"
 font_size = 14.0
+
+# Launcher location on screen
+# Options: bottom, top, left, right, center, top-left, top-right, bottom-left, bottom-right
+location = "bottom"
