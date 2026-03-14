@@ -2,7 +2,8 @@ use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
 use iced::{Font, Color};
-use iced_layer_shell::Anchor;
+use crate::Anchor;
+use crate::app::message::{WINDOW_HEIGHT, POPUP_GAP};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ConfigFile {
@@ -182,16 +183,25 @@ impl Config {
         
         match location.as_str() {
             "top" => (0, 0, y, 0),
-            "bottom" => (0, 0, 0, y),
-            "left" => (x, 0, 0, 0),
-            "right" => (0, x, 0, 0),
+            "bottom" => (x, 0, 0, y),
+            "left" => (x, 0, y, 0),
+            "right" => (0, x, y, 0),
             "center" => (x, x, y, y),
             "top-left" => (x, 0, y, 0),
             "top-right" => (0, x, y, 0),
             "bottom-left" => (x, 0, 0, y),
             "bottom-right" => (0, x, 0, y),
-            _ => (0, 0, 0, y), // default bottom
+            _ => (x, 0, 0, y), // default bottom-left
         }
+    }
+
+    /// Returns popup margin (positioned above main window)
+    /// Format: (left, right, top, bottom)
+    pub fn get_popup_margin(&self) -> (i32, i32, i32, i32) {
+        let x = self.x.unwrap_or(0);
+        // Popup is always positioned above main window
+        // Main window has height WINDOW_HEIGHT, so popup needs margin to be above it
+        (x, 0, (WINDOW_HEIGHT + 4 + POPUP_GAP) as i32, 0)
     }
 
     pub fn hex_to_color(hex: &str) -> Color {

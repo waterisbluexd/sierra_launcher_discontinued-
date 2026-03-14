@@ -8,9 +8,11 @@ use app::state::{Launcher, Panel, PopupState};
 use app::message::Message;
 use iced_layershell::build_pattern::daemon;
 use iced::{Task as Command, Color, Element};
-use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption};
+use iced_layershell::reexport::{KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption};
 use iced_layershell::settings::{Settings, LayerShellSettings, StartMode};
 use iced::window::Id;
+
+pub use iced_layershell::reexport::Anchor;
 use crate::utils::theme::Theme;
 use crate::utils::wallpaper_manager::WallpaperManager;
 use crate::config::Config;
@@ -238,13 +240,8 @@ impl DaemonState {
                             layer: Layer::Overlay,
                             anchor: self.config.get_anchor(),
                             exclusive_zone: Some(0),
-                            // Position it relative to the main window based on anchor
-                            margin: Some((
-                                0,
-                                0,
-                                (WINDOW_HEIGHT + 4 + POPUP_GAP) as i32,  // bottom margin
-                                0,
-                            )),
+                            // Position it relative to the main window based on config
+                            margin: Some(self.config.get_popup_margin()),
                             keyboard_interactivity: KeyboardInteractivity::OnDemand,
                             output_option: OutputOption::None,
                             events_transparent: false,  // MUST be false to receive mouse events
