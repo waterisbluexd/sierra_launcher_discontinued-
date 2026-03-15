@@ -1,10 +1,9 @@
-use iced::widget::{container, text, column, stack, row, button};
+use iced::widget::{container, text, column, stack, row};
 use iced::{Element, Border, Color, Length, alignment};
 use crate::utils::theme::Theme;
 use crate::Message;
-use crate::app::state::Launcher;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub struct WifiPanel {
     status_cache: Arc<Mutex<WifiStatus>>,
@@ -47,20 +46,20 @@ impl WifiPanel {
             .map(|s| s.wifi_name.clone())
             .unwrap_or_else(|_| "Unknown".to_string())
     }
-    
-    pub fn toggle_wifi(&self) {
-        let is_enabling = !self.wifi_enabled();
-        
-        std::thread::spawn(move || {
-            crate::panels::system::system_services::toggle_wifi_cmd(is_enabling);
-        });
-    }
 
     pub fn view<'a>(&'a self, theme: &'a Theme, bg_with_alpha: Color, font: iced::Font, font_size: f32) -> Element<'a, Message> {
         let wifi_enabled = self.wifi_enabled();
         let wifi_name = self.wifi_name();
         
         let is_connected = wifi_enabled && wifi_name != "No Network" && wifi_name != "WiFi Off";
+        let active_accent = if is_connected { theme.color2 } else { theme.color3 };
+        let inactive_accent = theme.color8;
+        
+        let (wifi_text_color, _wifi_bg_color, _wifi_border_color) = if wifi_enabled {
+            (theme.color0, theme.color2, theme.color2)
+        } else {
+            (inactive_accent, Color::TRANSPARENT, inactive_accent)
+        };
         
         let wifi_icon_str = if wifi_enabled { "󰤨" } else { "󰤮" };
         
@@ -70,11 +69,12 @@ impl WifiPanel {
                     text(wifi_icon_str)
                         .font(font)
                         .size(font_size * 2.0)
+                        .color(wifi_text_color)
                 )
                 .width(Length::Shrink),
                 column![
                     text("CONNECTION")
-                        .color(theme.color6)
+                        .color(wifi_text_color)
                         .font(font)
                         .size(font_size * 0.65),
                     text(if wifi_name.len() > 14 {
@@ -82,7 +82,7 @@ impl WifiPanel {
                     } else {
                         wifi_name.clone()
                     })
-                        .color(theme.color6)
+                        .color(wifi_text_color)
                         .font(font)
                         .size(font_size * 0.9)
                 ]

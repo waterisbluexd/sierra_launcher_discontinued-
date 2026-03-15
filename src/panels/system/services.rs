@@ -338,7 +338,7 @@ impl ServicesPanel {
                     row![
                         container(
                             button(wifi_button_content)
-                                .on_press(Message::GoToWifiPanel)
+                                .on_press(Message::WifiToggle)
                                 .width(Length::Fill)
                                 .height(Length::Fill)
                                 .style(move |_theme, status| {
