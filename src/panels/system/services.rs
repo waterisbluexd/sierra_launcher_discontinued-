@@ -1,5 +1,5 @@
-use iced::widget::{container, text, stack, row, column, vertical_slider, slider, button};
-use iced::{Element, Border, Color, Length};
+use iced::widget::{container, text, stack, row, column, vertical_slider, slider, button, mouse_area};
+use iced::{Element, Border, Color, Length, Event, mouse};
 use crate::utils::theme::Theme;
 use crate::Message;
 use std::sync::{Arc, Mutex};
@@ -338,7 +338,7 @@ impl ServicesPanel {
                     row![
                         container(
                             button(wifi_button_content)
-                                .on_press(if self.is_airplane_mode_on { Message::NoOp } else { Message::WifiToggle })
+                                .on_press(Message::GoToWifiPanel)
                                 .width(Length::Fill)
                                 .height(Length::Fill)
                                 .style(move |_theme, status| {

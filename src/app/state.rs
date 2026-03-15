@@ -10,6 +10,7 @@ use crate::panels::media::mpris_player::MusicPlayer;
 use crate::panels::system::system::SystemPanel;
 use crate::panels::system::services::ServicesPanel;
 use crate::panels::weather::WeatherPanel;
+use crate::panels::system::wifi_panel::WifiPanel;
 
 use std::time::Instant;
 use iced::window::Id;
@@ -22,6 +23,7 @@ pub enum Panel {
     Wallpaper,
     System,
     Services,
+    Wifi,
 }
 
 pub struct PopupState {
@@ -61,6 +63,7 @@ pub struct Launcher {
     pub music_player: MusicPlayer,
     pub system_panel: SystemPanel,
     pub services_panel: ServicesPanel,
+    pub wifi_panel: WifiPanel,
     pub last_color_check: Instant,
     pub last_services_refresh: Instant,
     pub last_pywal_reload: Instant,

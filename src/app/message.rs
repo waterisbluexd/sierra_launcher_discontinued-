@@ -30,6 +30,9 @@ pub enum Message {
     WifiToggle,
     BluetoothToggle,
     EyeCareToggle,
+    WifiButtonClick(bool), // true = left click (go to panel), false = right click (toggle)
+    GoToWifiPanel,
+    GoBackToServices,
     ToggleControlCenter,
     PowerOffTheSystem,
     RestartTheSystem,

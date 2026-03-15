@@ -21,6 +21,7 @@ use crate::panels::main::app_list::{AppList, self};
 use crate::panels::media::mpris_player::MusicPlayer;
 use crate::panels::system::system::SystemPanel;
 use crate::panels::system::services::ServicesPanel;
+use crate::panels::system::wifi_panel::WifiPanel;
 use crate::panels::weather::WeatherPanel;
 use crate::panels::title_color::TitleAnimator;
 use app::message::{WINDOW_WIDTH, WINDOW_HEIGHT, POPUP_HEIGHT, POPUP_GAP};
@@ -374,6 +375,7 @@ impl DaemonState {
                                     }
                                     Panel::Music => Panel::Weather,
                                     Panel::Weather => Panel::Clock,
+                                    Panel::Wifi => Panel::Clock,
                                 };
                                 // Skip Music if not available
                                 if launcher.current_panel == Panel::Music && !music_available {
@@ -388,9 +390,7 @@ impl DaemonState {
                                 eprintln!("[Input] Right - cycling panel right");
                                 let music_available = launcher.music_player.state.player_available;
                                 launcher.current_panel = match launcher.current_panel {
-                                    Panel::Clock => {
-                                        if music_available { Panel::Weather } else { Panel::Wallpaper }
-                                    }
+                                    Panel::Clock => Panel::Weather,
                                     Panel::Weather => {
                                         if music_available { Panel::Music } else { Panel::Wallpaper }
                                     }
@@ -398,6 +398,7 @@ impl DaemonState {
                                     Panel::Wallpaper => Panel::Services,
                                     Panel::Services => Panel::System,
                                     Panel::System => Panel::Clock,
+                                    Panel::Wifi => Panel::Clock,
                                 };
                             }
                         }
@@ -578,6 +579,7 @@ impl DaemonState {
             music_player: MusicPlayer::new(),
             system_panel: SystemPanel::new(),
             services_panel: ServicesPanel::new(),
+            wifi_panel: WifiPanel::new(),
             last_color_check: Instant::now(),
             last_services_refresh: Instant::now(),
             last_pywal_reload: Instant::now(),

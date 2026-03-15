@@ -9,6 +9,7 @@ use crate::panels::weather;
 use crate::panels::media::music;
 use crate::panels::system;
 use crate::panels::system::services;
+use crate::panels::system::wifi_panel::WifiPanel;
 use crate::panels::media::mpris_player::MusicPlayer;
 use crate::panels::system::system_panel_view;
 use crate::panels::wallpaper_panel;
@@ -28,6 +29,7 @@ pub fn right_main_panels_view<'a>(
     music_player: &'a MusicPlayer,
     system_panel: &'a system::SystemPanel,
     services_panel: &'a services::ServicesPanel,
+    wifi_panel: &'a WifiPanel,
     control_center_visible: bool,
     clipboard_visible: bool,
     clipboard_selected_index: usize,
@@ -58,6 +60,7 @@ pub fn right_main_panels_view<'a>(
 
         Panel::System => system_panel_view(system_panel, theme, bg_with_alpha, font, font_size),
         Panel::Services => services_panel.view(theme, bg_with_alpha, font, font_size),
+        Panel::Wifi => wifi_panel.view(theme, bg_with_alpha, font, font_size),
     };
     
     container(

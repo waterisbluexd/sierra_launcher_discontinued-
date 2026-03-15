@@ -197,14 +197,16 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
                 (Panel::Wallpaper, Direction::Right) => Panel::System,
                 (Panel::System, Direction::Right) => Panel::Services,
                 (Panel::Services, Direction::Right) => Panel::Clock,
-                (Panel::Clock, Direction::Left) => Panel::Services,
-                (Panel::Services, Direction::Left) => Panel::System,
-                (Panel::System, Direction::Left) => Panel::Wallpaper,
+                (Panel::Wifi, Direction::Right) => Panel::Clock,
+                (Panel::Clock, Direction::Left) => Panel::System,
+                (Panel::System, Direction::Left) => Panel::Services,
+                (Panel::Services, Direction::Left) => Panel::Wallpaper,
                 (Panel::Wallpaper, Direction::Left) => {
                     if music_available { Panel::Music } else { Panel::Weather }
                 }
                 (Panel::Music, Direction::Left) => Panel::Weather,
                 (Panel::Weather, Direction::Left) => Panel::Clock,
+                (Panel::Wifi, Direction::Left) => Panel::Clock,
             };
             
             // If we landed on Music but it's not available, skip to the next one
@@ -301,6 +303,25 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
 
         Message::WifiToggle => {
             launcher.services_panel.toggle_wifi();
+            Command::none()
+        }
+
+        Message::WifiButtonClick(is_left_click) => {
+            if is_left_click {
+                launcher.current_panel = Panel::Wifi;
+            } else {
+                launcher.services_panel.toggle_wifi();
+            }
+            Command::none()
+        }
+
+        Message::GoToWifiPanel => {
+            launcher.current_panel = Panel::Wifi;
+            Command::none()
+        }
+
+        Message::GoBackToServices => {
+            launcher.current_panel = Panel::Services;
             Command::none()
         }
 

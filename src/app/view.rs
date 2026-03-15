@@ -71,6 +71,7 @@ pub fn view(launcher: &Launcher) -> Element<'_, Message> {
                         &launcher.music_player,
                         &launcher.system_panel,
                         &launcher.services_panel,
+                        &launcher.wifi_panel,
                         launcher.control_center_visible,
                         launcher.clipboard_visible,
                         launcher.clipboard_selected_index,
