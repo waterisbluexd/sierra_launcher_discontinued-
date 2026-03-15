@@ -77,4 +77,6 @@ pub enum Message {
     WifiPasswordInput(String),
     /// Execute the connection (with current password if secured).
     WifiDoConnect,
+    /// Toggle password field visibility (eye button)
+    WifiTogglePasswordVisibility,
 }

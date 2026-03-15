@@ -553,5 +553,9 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             }
             Command::none()
         }
+        Message::WifiTogglePasswordVisibility => {
+            launcher.wifi_panel.toggle_show_password();
+            Command::none()
+        }
     }
 }
