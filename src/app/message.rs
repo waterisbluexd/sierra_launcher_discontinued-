@@ -61,4 +61,10 @@ pub enum Message {
     SwitchWorkspace(usize),
     /// Refresh current workspace from compositor
     RefreshWorkspace,
+    /// Navigate wifi network list up
+    WifiArrowUp,
+    /// Navigate wifi network list down
+    WifiArrowDown,
+    /// Refresh wifi network scan
+    WifiScanRefresh,
 }

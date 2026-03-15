@@ -407,6 +407,8 @@ impl DaemonState {
                                 if launcher.clipboard_selected_index > 0 {
                                     launcher.clipboard_selected_index -= 1;
                                 }
+                            } else if launcher.current_panel == Panel::Wifi {
+                                launcher.wifi_panel.arrow_up();
                             } else {
                                 let _ = launcher.app_list.update(panels::main::app_list::Message::ArrowUp);
                             }
@@ -414,6 +416,8 @@ impl DaemonState {
                         iced::keyboard::key::Named::ArrowDown => {
                             if launcher.clipboard_visible {
                                 launcher.clipboard_selected_index += 1;
+                            } else if launcher.current_panel == Panel::Wifi {
+                                launcher.wifi_panel.arrow_down();
                             } else {
                                 let _ = launcher.app_list.update(panels::main::app_list::Message::ArrowDown);
                             }
@@ -558,7 +562,10 @@ impl DaemonState {
         let workspace_refresh = iced::time::every(std::time::Duration::from_millis(500))
             .map(|_| Message::RefreshWorkspace);
         
-        iced::Subscription::batch(vec![ipc_poll, close_events, events, color_check, music_refresh, popup_tick, workspace_refresh])
+        let wifi_scan = iced::time::every(std::time::Duration::from_secs(15))
+            .map(|_| Message::WifiScanRefresh);
+        
+        iced::Subscription::batch(vec![ipc_poll, close_events, events, color_check, music_refresh, popup_tick, workspace_refresh, wifi_scan])
     }
     
     fn create_launcher(&self) -> Launcher {

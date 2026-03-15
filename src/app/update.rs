@@ -514,5 +514,17 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             launcher.current_workspace = crate::panels::workspace::get_current_workspace();
             Command::none()
         }
+        Message::WifiArrowUp => {
+            launcher.wifi_panel.arrow_up();
+            Command::none()
+        }
+        Message::WifiArrowDown => {
+            launcher.wifi_panel.arrow_down();
+            Command::none()
+        }
+        Message::WifiScanRefresh => {
+            launcher.wifi_panel.maybe_rescan();
+            Command::none()
+        }
     }
 }

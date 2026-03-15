@@ -138,3 +138,112 @@ pub fn toggle_eye_care_cmd(enable: bool) {
         let _ = Command::new("redshift").args(&["-x"]).output();
     }
 }
+
+
+/// A scanned wifi network entry.
+#[derive(Debug, Clone)]
+pub struct WifiNetwork {
+    /// SSID truncated to 30 chars max
+    pub ssid: String,
+    /// Signal strength 0–100
+    pub signal: u8,
+    /// Whether this is the currently connected network
+    pub connected: bool,
+    /// Whether the network requires a password (has security)
+    pub secured: bool,
+}
+
+/// Scan for available wifi networks using nmcli.
+/// Returns them sorted: connected first, then by signal descending.
+pub fn fetch_wifi_networks() -> Vec<WifiNetwork> {
+    // nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY dev wifi list
+    // IN-USE is "*" for the active network
+    let output = match Command::new("nmcli")
+        .args(&["-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list"])
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("[Wifi] nmcli failed: {}", e);
+            return Vec::new();
+        }
+    };
+
+    let stdout = match String::from_utf8(output.stdout) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut seen_ssids = std::collections::HashSet::new();
+    let mut networks: Vec<WifiNetwork> = Vec::new();
+
+    for line in stdout.lines() {
+        let parts: Vec<&str> = line.splitn(4, ':').collect();
+        if parts.len() < 4 {
+            continue;
+        }
+
+        let in_use = parts[0].trim();
+        let ssid_raw = parts[1];
+        let signal_str = parts[2].trim();
+        let security_raw = parts[3].trim();
+
+        // Skip hidden networks (empty SSID)
+        if ssid_raw.is_empty() || ssid_raw == "--" {
+            continue;
+        }
+
+        // Deduplicate by SSID
+        if seen_ssids.contains(ssid_raw) {
+            if let Some(existing) = networks.iter_mut().find(|n| n.ssid == truncate_ssid(ssid_raw)) {
+                if let Ok(sig) = signal_str.parse::<u8>() {
+                    if sig > existing.signal {
+                        existing.signal = sig;
+                    }
+                }
+            }
+            continue;
+        }
+        seen_ssids.insert(ssid_raw.to_string());
+
+        let signal: u8 = signal_str.parse().unwrap_or(0);
+        let connected = in_use == "*";
+        let secured = !security_raw.is_empty() && security_raw != "--";
+
+        networks.push(WifiNetwork {
+            ssid: truncate_ssid(ssid_raw),
+            signal,
+            connected,
+            secured,
+        });
+    }
+
+    // Sort: connected first, then by signal descending
+    networks.sort_by(|a, b| {
+        b.connected.cmp(&a.connected)
+            .then(b.signal.cmp(&a.signal))
+    });
+
+    networks
+}
+
+/// Truncate an SSID to at most 30 characters.
+fn truncate_ssid(ssid: &str) -> String {
+    const MAX: usize = 30;
+    if ssid.chars().count() <= MAX {
+        ssid.to_string()
+    } else {
+        let truncated: String = ssid.chars().take(MAX - 2).collect();
+        format!("{}…", truncated)
+    }
+}
+
+/// Signal strength (0–100) → one of four wifi icon strings (nerd font).
+pub fn signal_icon(signal: u8) -> &'static str {
+    match signal {
+        75..=100 => "󰤨", // full
+        50..=74  => "󰤥", // good
+        25..=49  => "󰤢", // fair
+        _        => "󰤟", // weak
+    }
+}
