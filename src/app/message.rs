@@ -67,4 +67,14 @@ pub enum Message {
     WifiArrowDown,
     /// Refresh wifi network scan
     WifiScanRefresh,
+    /// Force refresh wifi network scan
+    WifiForceScan,
+    /// Open the connect prompt for the currently selected network.
+    WifiOpenConnect,
+    /// Close / cancel the connect prompt without connecting.
+    WifiCloseConnect,
+    /// Update the password field in the connect prompt.
+    WifiPasswordInput(String),
+    /// Execute the connection (with current password if secured).
+    WifiDoConnect,
 }

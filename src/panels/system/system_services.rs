@@ -247,3 +247,16 @@ pub fn signal_icon(signal: u8) -> &'static str {
         _        => "󰤟", // weak
     }
 }
+
+pub fn connect_wifi_cmd(ssid: &str, password: &str) {
+    if password.is_empty() {
+        let _ = std::process::Command::new("nmcli")
+            .args(&["dev", "wifi", "connect", ssid])
+            .output();
+    } else {
+        let _ = std::process::Command::new("nmcli")
+            .args(&["dev", "wifi", "connect", ssid, "password", password])
+            .output();
+    }
+    eprintln!("[Wifi] connect attempt: {}", ssid);
+}

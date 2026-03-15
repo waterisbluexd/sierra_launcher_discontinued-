@@ -329,6 +329,18 @@ impl DaemonState {
                 key: iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape), 
                 .. 
             })) => {
+                // Close wifi connect prompt first if open
+                if let Some(launcher) = self.windows.values_mut().next() {
+                    if launcher.wifi_panel.connect_prompt.is_some() {
+                        launcher.wifi_panel.close_connect_prompt();
+                        return Command::none();
+                    }
+                    // If on Wifi panel, go back to Services
+                    if launcher.current_panel == Panel::Wifi {
+                        launcher.current_panel = Panel::Services;
+                        return Command::none();
+                    }
+                }
                 if let Some((&id, launcher)) = self.windows.iter_mut().next() {
                     eprintln!("[Input] ESC pressed - closing window {:?}", id);
                     launcher.search_bar.input_value.clear();
@@ -343,6 +355,27 @@ impl DaemonState {
                 key: iced::keyboard::Key::Named(iced::keyboard::key::Named::Enter), 
                 .. 
             })) => {
+                // Wifi panel intercepts Enter
+                if let Some(launcher) = self.windows.values_mut().next() {
+                    if launcher.current_panel == Panel::Wifi {
+                        if launcher.wifi_panel.connect_prompt.is_some() {
+                            // Enter in password box → execute connect
+                            if let Some((ssid, password)) = launcher.wifi_panel.take_connect_action() {
+                                std::thread::spawn(move || {
+                                    crate::panels::system::system_services::connect_wifi_cmd(&ssid, &password);
+                                });
+                            }
+                        } else {
+                            // Enter on a row → open connect prompt
+                            launcher.wifi_panel.open_connect_prompt();
+                            if let Some(ref prompt) = launcher.wifi_panel.connect_prompt {
+                                return iced::widget::operation::focus(prompt.input_id.clone());
+                            }
+                        }
+                        return Command::none();
+                    }
+                }
+                // Normal Enter: launch selected app
                 if let Some((id, launcher)) = self.windows.iter_mut().next() {
                     eprintln!("[Input] Enter pressed - launching app");
                     let _ = launcher.app_list.update(panels::main::app_list::Message::LaunchSelected);

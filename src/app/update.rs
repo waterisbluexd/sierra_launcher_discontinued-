@@ -526,5 +526,32 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             launcher.wifi_panel.maybe_rescan();
             Command::none()
         }
+        Message::WifiForceScan => {
+            launcher.wifi_panel.force_rescan();
+            Command::none()
+        }
+        Message::WifiOpenConnect => {
+            launcher.wifi_panel.open_connect_prompt();
+            if let Some(ref prompt) = launcher.wifi_panel.connect_prompt {
+                return iced::widget::operation::focus(prompt.input_id.clone());
+            }
+            Command::none()
+        }
+        Message::WifiCloseConnect => {
+            launcher.wifi_panel.close_connect_prompt();
+            Command::none()
+        }
+        Message::WifiPasswordInput(pw) => {
+            launcher.wifi_panel.set_password(pw);
+            Command::none()
+        }
+        Message::WifiDoConnect => {
+            if let Some((ssid, password)) = launcher.wifi_panel.take_connect_action() {
+                std::thread::spawn(move || {
+                    crate::panels::system::system_services::connect_wifi_cmd(&ssid, &password);
+                });
+            }
+            Command::none()
+        }
     }
 }
