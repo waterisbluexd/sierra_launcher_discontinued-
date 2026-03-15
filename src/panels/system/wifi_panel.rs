@@ -117,7 +117,7 @@ impl WifiPanel {
         *self.scanning.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    // ── view ─────────────────────────────────────────────────────────────
+    // ── view dispatch ─────────────────────────────────────────────────────
 
     pub fn view<'a>(&'a self, theme: &'a Theme, bg_with_alpha: Color, font: iced::Font, font_size: f32) -> Element<'a, Message> {
         if let Some(ref prompt) = self.connect_prompt {
@@ -126,7 +126,7 @@ impl WifiPanel {
         self.view_list(theme, bg_with_alpha, font, font_size)
     }
 
-    // ── list view ────────────────────────────────────────────────────────
+    // ── list view ─────────────────────────────────────────────────────────
 
     fn view_list<'a>(&'a self, theme: &'a Theme, bg_with_alpha: Color, font: iced::Font, font_size: f32) -> Element<'a, Message> {
         let networks = self.networks.lock().map(|n| n.clone()).unwrap_or_default();
@@ -134,7 +134,6 @@ impl WifiPanel {
         let rfs = font_size * 0.9;
         let dim = Color::from_rgba(theme.color6.r, theme.color6.g, theme.color6.b, 0.35);
 
-        // header
         let header = container(
             row![
                 text("").width(Length::Fixed(30.0)),
@@ -146,7 +145,6 @@ impl WifiPanel {
         .padding(iced::padding::horizontal(8).vertical(2))
         .width(Length::Fill);
 
-        // rows
         let mut rows = column![].spacing(0);
 
         if networks.is_empty() {
@@ -170,7 +168,7 @@ impl WifiPanel {
                 } else { None };
 
                 let ssid_color = if selected { theme.foreground } else if net.connected { theme.color2 } else { theme.color6 };
-                let sig_color = sig_color(theme, net);
+                let sig_col = sig_color(theme, net);
 
                 let net_row = row![
                     text(if selected { ">>" } else { "  " }).font(font).size(rfs).color(ssid_color).width(Length::Fixed(20.0)),
@@ -179,7 +177,7 @@ impl WifiPanel {
                     text(if net.secured { " 󰌾" } else { " " }).font(font).size(rfs * 0.85)
                         .color(Color::from_rgba(theme.color6.r, theme.color6.g, theme.color6.b, 0.4))
                         .width(Length::Fixed(16.0)),
-                    text(signal_icon(net.signal)).font(font).size(rfs * 1.05).color(sig_color).width(Length::Fixed(16.0)),
+                    text(signal_icon(net.signal)).font(font).size(rfs * 1.05).color(sig_col).width(Length::Fixed(16.0)),
                 ]
                 .spacing(2).align_y(alignment::Vertical::Center).width(Length::Fill);
 
@@ -198,20 +196,21 @@ impl WifiPanel {
             }
         }
 
-        // bottom bar
+        // status text
         let pos_txt = if networks.len() > WINDOW_SIZE {
             let end = (self.window_start + WINDOW_SIZE).min(networks.len());
             format!("{}-{}/{}", self.window_start + 1, end, networks.len())
         } else { String::new() };
         let scan_txt = if scanning { "↻" } else { "" };
-        let status = [scan_txt, pos_txt.as_str()].iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>().join("  ");
+        let status_str = [scan_txt, pos_txt.as_str()]
+            .iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>().join("  ");
 
         let bottom_bar = container(
             row![
                 pill_btn("← Back", theme, font, font_size * 0.88).on_press(Message::GoBackToServices),
                 pill_btn("↻ Scan", theme, font, font_size * 0.88).on_press(Message::WifiForceScan),
                 container(
-                    text(status).font(font).size(font_size * 0.72)
+                    text(status_str).font(font).size(font_size * 0.72)
                         .color(Color::from_rgba(theme.color6.r, theme.color6.g, theme.color6.b, 0.35))
                 ).width(Length::Fill).center_x(Length::Fill).align_y(alignment::Vertical::Center),
                 pill_btn("Connect →", theme, font, font_size * 0.88).on_press(Message::WifiOpenConnect),
@@ -221,13 +220,19 @@ impl WifiPanel {
         .padding(iced::padding::horizontal(8).vertical(6))
         .width(Length::Fill);
 
-        let inner = column![header, hairline(theme), container(rows).width(Length::Fill).height(Length::Fill), hairline(theme), bottom_bar]
-            .spacing(0).width(Length::Fill).height(Length::Fill);
+        let inner = column![
+            header,
+            hairline(theme),
+            container(rows).width(Length::Fill).height(Length::Fill),
+            hairline(theme),
+            bottom_bar,
+        ]
+        .spacing(0).width(Length::Fill).height(Length::Fill);
 
         panel_frame(inner, theme, bg_with_alpha, font, font_size, " Wifi ")
     }
 
-    // ── connect prompt ───────────────────────────────────────────────────
+    // ── connect prompt view ───────────────────────────────────────────────
 
     fn view_connect_prompt<'a>(
         &'a self,
@@ -239,20 +244,17 @@ impl WifiPanel {
     ) -> Element<'a, Message> {
         let dim = Color::from_rgba(theme.color6.r, theme.color6.g, theme.color6.b, 0.45);
 
-        // ── SSID row — just the name, clean ──────────────────────────────
-        let ssid_section = container(
+        // ── SSID row ──────────────────────────────────────────────────────
+        let ssid_row = container(
             row![
                 text(signal_icon(100)).font(font).size(font_size * 1.1).color(theme.color2),
                 text("  "),
                 text(&prompt.ssid).font(font).size(font_size * 1.05).color(theme.color6),
                 container(text("")).width(Length::Fill),
-                // lock badge if secured
                 if prompt.secured {
-                    text(" 󰌾 secured").font(font).size(font_size * 0.75)
-                        .color(dim)
+                    text(" 󰌾 secured").font(font).size(font_size * 0.78).color(dim)
                 } else {
-                    text(" 󰤨 open").font(font).size(font_size * 0.75)
-                        .color(theme.color2)
+                    text(" 󰤨 open").font(font).size(font_size * 0.78).color(theme.color2)
                 },
             ]
             .spacing(0)
@@ -262,37 +264,62 @@ impl WifiPanel {
         .padding(iced::padding::horizontal(12).vertical(12))
         .width(Length::Fill);
 
-        // ── Password section (only if secured) ───────────────────────────
+        // ── body ──────────────────────────────────────────────────────────
         let body: Element<'a, Message> = if prompt.secured {
-            // Plain text input (password masking not available in this Iced version)
+
+            // Input style: transparent bg, no inner border
             let input_style = move |_: &_, _: _| text_input::Style {
                 background: iced::Background::Color(Color::TRANSPARENT),
                 border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 0.0.into() },
                 icon: Color::TRANSPARENT,
-                placeholder: Color::from_rgba(theme.color6.r, theme.color6.g, theme.color6.b, 0.25),
+                placeholder: Color::from_rgba(
+                    theme.color6.r, theme.color6.g, theme.color6.b, 0.25,
+                ),
                 value: theme.color6,
                 selection: theme.color4,
             };
 
-            let pw_input: Element<'a, Message> = text_input("", &prompt.password)
-                .on_input(Message::WifiPasswordInput)
-                .on_submit(Message::WifiDoConnect)
-                .id(prompt.input_id.clone())
-                .font(font)
-                .size(font_size)
-                .padding(iced::padding::horizontal(10).vertical(10))
-                .style(input_style)
-                .into();
+            // Build two complete widget trees — the only reliable way to
+            // conditionally apply .password() since it returns a different type.
+            // Note: .password() is not available in this Iced version, so we use plain text.
+            let pw_field: Element<'a, Message> = if prompt.show_password {
+                // plain text — user sees what they typed
+                text_input("", &prompt.password)
+                    .on_input(Message::WifiPasswordInput)
+                    .on_submit(Message::WifiDoConnect)
+                    .id(prompt.input_id.clone())
+                    .font(font)
+                    .size(font_size)
+                    .padding(iced::padding::horizontal(10).vertical(11))
+                    .style(input_style)
+                    .into()
+            } else {
+                // Default view — plain text (password masking not available in this Iced version)
+                text_input("", &prompt.password)
+                    .on_input(Message::WifiPasswordInput)
+                    .on_submit(Message::WifiDoConnect)
+                    .id(prompt.input_id.clone())
+                    .font(font)
+                    .size(font_size)
+                    .padding(iced::padding::horizontal(10).vertical(11))
+                    .style(input_style)
+                    .into()
+            };
 
-            // Eye toggle button — same size as the input text
+            // Eye button — brighter when showing, dimmer when hidden
             let eye_icon = if prompt.show_password { "󰛐" } else { "󰛑" };
+            let eye_alpha = if prompt.show_password { 0.9_f32 } else { 0.4_f32 };
+
             let eye_btn = button(
                 container(
-                    text(eye_icon).font(font).size(font_size).color(
-                        Color::from_rgba(theme.color6.r, theme.color6.g, theme.color6.b, 0.7)
-                    )
+                    text(eye_icon)
+                        .font(font)
+                        .size(font_size)
+                        .color(Color::from_rgba(
+                            theme.color6.r, theme.color6.g, theme.color6.b, eye_alpha,
+                        ))
                 )
-                .width(Length::Fixed(36.0))
+                .width(Length::Fixed(40.0))
                 .height(Length::Fill)
                 .center_x(Length::Fill)
                 .center_y(Length::Fill)
@@ -312,8 +339,8 @@ impl WifiPanel {
                 },
             });
 
-            // Thin vertical divider between input and eye button
-            let vdivider = container(text(""))
+            // Thin vertical separator
+            let vline = container(text(""))
                 .width(Length::Fixed(1.0))
                 .height(Length::Fill)
                 .style(move |_| container::Style {
@@ -323,10 +350,17 @@ impl WifiPanel {
                     ..Default::default()
                 });
 
-            // Input row: [  input field  | | eye ]
+            // ── Terminal-style password box ────────────────────────────
+            //
+            //   ┌─ Password ───────────────────────────────────┐
+            //   │                                          [eye]│
+            //   └──────────────────────────────────────────────┘
+            //
+            // Outer stack: the border box + floating " Password " label.
+
             let input_row = row![
-                container(pw_input).width(Length::Fill).height(Length::Fill),
-                vdivider,
+                container(pw_field).width(Length::Fill).height(Length::Fill),
+                vline,
                 eye_btn,
             ]
             .spacing(0)
@@ -334,44 +368,76 @@ impl WifiPanel {
             .width(Length::Fill)
             .height(Length::Fill);
 
-            // Label above the row
-            let pw_label = text(" password ")
-                .font(font)
-                .size(font_size)
-                .color(Color::from_rgba(theme.color6.r, theme.color6.g, theme.color6.b, 0.55));
+            // The box that holds the input — fixed height so it's tall enough
+            let pw_box = container(
+                stack![
+                    // border container — padding-top leaves room for the label
+                    container(
+                        container(input_row)
+                            .width(Length::Fill)
+                            .height(Length::Fill)
+                            .padding(iced::padding::top(10).bottom(0).horizontal(0))
+                            .style(move |_| container::Style {
+                                background: None,
+                                border: Border {
+                                    color: theme.color3,
+                                    width: 1.5,
+                                    radius: 0.0.into(),
+                                },
+                                ..Default::default()
+                            })
+                    )
+                    .padding(iced::padding::top(8))
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+
+                    // floating " Password " label cutting into the top border
+                    container(
+                        container(
+                            text(" Password ")
+                                .font(font)
+                                .size(font_size)
+                                .color(theme.color6)
+                        )
+                        .style(move |_| container::Style {
+                            background: Some(bg_with_alpha.into()),
+                            ..Default::default()
+                        })
+                        .width(Length::Shrink)
+                        .height(Length::Shrink)
+                    )
+                    .padding(iced::padding::left(10).top(1))
+                    .width(Length::Shrink)
+                    .height(Length::Shrink),
+                ]
+            )
+            .width(Length::Fill)
+            .height(Length::Fixed(58.0)); // tall enough to see text clearly
 
             container(
-                column![
-                    container(pw_label)
-                        .padding(iced::padding::horizontal(12).top(14).bottom(4))
-                        .width(Length::Fill),
-                    container(input_row)
-                        .width(Length::Fill)
-                        .height(Length::Fixed(46.0))
-                        .padding(iced::padding::horizontal(12).vertical(0))
-                        .style(move |_| container::Style { background: None, ..Default::default() }),
-                ]
-                .spacing(0)
+                container(pw_box)
+                    .padding(iced::padding::horizontal(12).top(12).bottom(8))
+                    .width(Length::Fill)
             )
             .width(Length::Fill)
             .into()
+
         } else {
-            // Open network — no password needed
             container(
                 row![
-                    text("󰤨").font(font).size(font_size * 1.1).color(theme.color2),
-                    text("  Open network — no password required").font(font).size(font_size * 0.88)
-                        .color(dim),
+                    text("󰤨").font(font).size(font_size * 1.05).color(theme.color2),
+                    text("  Open network — no password required")
+                        .font(font).size(font_size * 0.88).color(dim),
                 ]
                 .spacing(0)
                 .align_y(alignment::Vertical::Center)
             )
-            .padding(iced::padding::horizontal(12).vertical(14))
+            .padding(iced::padding::horizontal(12).vertical(16))
             .width(Length::Fill)
             .into()
         };
 
-        // ── Bottom bar: Cancel | Connect ─────────────────────────────────
+        // ── bottom bar ────────────────────────────────────────────────────
         let bottom_bar = container(
             row![
                 pill_btn("← Cancel", theme, font, font_size * 0.88).on_press(Message::WifiCloseConnect),
@@ -383,9 +449,8 @@ impl WifiPanel {
         .padding(iced::padding::horizontal(8).vertical(6))
         .width(Length::Fill);
 
-        // ── Assemble ─────────────────────────────────────────────────────
         let inner = column![
-            ssid_section,
+            ssid_row,
             hairline(theme),
             container(body).width(Length::Fill).height(Length::Fill),
             hairline(theme),
@@ -397,24 +462,33 @@ impl WifiPanel {
     }
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 
 fn hairline<'a>(theme: &'a Theme) -> container::Container<'a, Message> {
     container(text(""))
         .width(Length::Fill)
         .height(Length::Fixed(1.0))
         .style(move |_| container::Style {
-            background: Some(Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.45).into()),
+            background: Some(Color::from_rgba(
+                theme.color3.r, theme.color3.g, theme.color3.b, 0.45,
+            ).into()),
             ..Default::default()
         })
 }
 
-fn pill_btn<'a>(label: &'a str, theme: &'a Theme, font: iced::Font, fs: f32) -> iced::widget::Button<'a, Message> {
+fn pill_btn<'a>(
+    label: &'a str,
+    theme: &'a Theme,
+    font: iced::Font,
+    fs: f32,
+) -> iced::widget::Button<'a, Message> {
     iced::widget::button(text(label).font(font).size(fs).color(theme.color6))
         .padding(iced::padding::horizontal(12).vertical(5))
         .style(move |_, status| match status {
             iced::widget::button::Status::Hovered => iced::widget::button::Style {
-                background: Some(Color::from_rgba(theme.color3.r, theme.color3.g, theme.color3.b, 0.35).into()),
+                background: Some(Color::from_rgba(
+                    theme.color3.r, theme.color3.g, theme.color3.b, 0.35,
+                ).into()),
                 border: Border { color: theme.color6, width: 1.5, radius: 0.0.into() },
                 ..Default::default()
             },
