@@ -1,4 +1,4 @@
-use iced::widget::{container, text, column, stack, row};
+use iced::widget::{container, text, column, stack, row, button};
 use iced::{Element, Border, Color, Length, alignment};
 use crate::utils::theme::Theme;
 use crate::Message;
@@ -52,48 +52,105 @@ impl WifiPanel {
         let wifi_name = self.wifi_name();
         
         let is_connected = wifi_enabled && wifi_name != "No Network" && wifi_name != "WiFi Off";
-        let active_accent = if is_connected { theme.color2 } else { theme.color3 };
         let inactive_accent = theme.color8;
         
-        let (wifi_text_color, _wifi_bg_color, _wifi_border_color) = if wifi_enabled {
-            (theme.color0, theme.color2, theme.color2)
-        } else {
-            (inactive_accent, Color::TRANSPARENT, inactive_accent)
-        };
-        
+        let wifi_text_color = if wifi_enabled { theme.color2 } else { inactive_accent };
         let wifi_icon_str = if wifi_enabled { "󰤨" } else { "󰤮" };
-        
+
+        let status_label = if is_connected {
+            format!("Connected: {}", wifi_name)
+        } else if wifi_enabled {
+            "No Network".to_string()
+        } else {
+            "WiFi Disabled".to_string()
+        };
+
         let wifi_content = column![
-            row![
-                container(
+            // Centered icon + status info
+            container(
+                column![
                     text(wifi_icon_str)
                         .font(font)
-                        .size(font_size * 2.0)
+                        .size(font_size * 4.0)
                         .color(wifi_text_color)
-                )
-                .width(Length::Shrink),
-                column![
-                    text("CONNECTION")
-                        .color(wifi_text_color)
+                        .center(),
+                    container(text("")).height(Length::Fixed(12.0)),
+                    text(if wifi_enabled { "WiFi On" } else { "WiFi Off" })
                         .font(font)
-                        .size(font_size * 0.65),
-                    text(if wifi_name.len() > 14 {
-                        format!("{}..", &wifi_name[..12])
-                    } else {
-                        wifi_name.clone()
-                    })
+                        .size(font_size * 1.2)
                         .color(wifi_text_color)
+                        .center(),
+                    container(text("")).height(Length::Fixed(6.0)),
+                    text(status_label)
                         .font(font)
-                        .size(font_size * 0.9)
+                        .size(font_size * 0.85)
+                        .color(Color::from_rgba(
+                            theme.color6.r,
+                            theme.color6.g,
+                            theme.color6.b,
+                            0.7,
+                        ))
+                        .center(),
                 ]
-                .spacing(2)
-            ]
-            .spacing(10),
+                .spacing(0)
+                .align_x(alignment::Horizontal::Center)
+                .width(Length::Fill)
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill),
+
+            // Back button pinned to bottom
+            container(
+                button(
+                    container(
+                        text("← Back to Services")
+                            .font(font)
+                            .size(font_size * 0.9)
+                            .color(theme.color6)
+                    )
+                    .padding(iced::padding::horizontal(16).vertical(6))
+                    .center_x(Length::Shrink)
+                    .center_y(Length::Shrink)
+                )
+                .on_press(Message::GoBackToServices)
+                .style(move |_, status| {
+                    match status {
+                        iced::widget::button::Status::Hovered => button::Style {
+                            background: Some(Color::from_rgba(
+                                theme.color3.r,
+                                theme.color3.g,
+                                theme.color3.b,
+                                0.3,
+                            ).into()),
+                            border: Border {
+                                color: theme.color6,
+                                width: 1.5,
+                                radius: 0.0.into(),
+                            },
+                            ..Default::default()
+                        },
+                        _ => button::Style {
+                            background: Some(Color::TRANSPARENT.into()),
+                            border: Border {
+                                color: theme.color3,
+                                width: 1.5,
+                                radius: 0.0.into(),
+                            },
+                            ..Default::default()
+                        }
+                    }
+                }),
+            )
+            .width(Length::Fill)
+            .padding(iced::padding::bottom(12))
+            .center_x(Length::Fill),
         ]
-        .spacing(20)
-        .align_x(alignment::Horizontal::Center)
+        .spacing(0)
         .width(Length::Fill)
-        .height(Length::Fill);
+        .height(Length::Fill)
+        .align_x(alignment::Horizontal::Center);
 
         container(
             container(
@@ -102,9 +159,7 @@ impl WifiPanel {
                         container(wifi_content)
                             .width(Length::Fill)
                             .height(Length::Fill)
-                            .padding(iced::padding::top(25))
-                            .center_x(Length::Fill)
-                            .center_y(Length::Fill)
+                            .padding(iced::padding::top(25).left(10).right(10).bottom(10))
                             .style(move |_| container::Style {
                                 background: None,
                                 border: Border {
@@ -118,6 +173,8 @@ impl WifiPanel {
                     .padding(iced::padding::top(15))
                     .width(Length::Fill)
                     .height(Length::Fill),
+
+                    // Floating title label — same pattern as clock, weather, system, etc.
                     container(
                         container(
                             text(" Wifi ")

@@ -336,11 +336,13 @@ impl ServicesPanel {
             column![
                 container(
                     row![
-                        container(
-                            button(wifi_button_content)
-                                .on_press(Message::WifiToggle)
-                                .width(Length::Fill)
-                                .height(Length::Fill)
+                        // Wifi button: left click = toggle, right click = open wifi panel
+                        mouse_area(
+                            container(
+                                button(wifi_button_content)
+                                    .on_press(Message::WifiToggle)
+                                    .width(Length::Fill)
+                                    .height(Length::Fill)
                                 .style(move |_theme, status| {
                                     let current_active_accent = if is_connected { theme.color2 } else { theme.color3 };
                                     let (current_wifi_text_color, current_wifi_bg_color, current_wifi_border_color) = if wifi_enabled {
@@ -397,7 +399,9 @@ impl ServicesPanel {
                                 }),
                         )
                         .width(Length::Fill)
-                        .height(Length::Fill),
+                        .height(Length::Fill)
+                        )
+                        .on_right_press(Message::GoToWifiPanel),
 
                         container(
                             button(
