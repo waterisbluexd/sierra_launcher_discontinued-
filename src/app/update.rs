@@ -531,9 +531,21 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             Command::none()
         }
         Message::WifiOpenConnect => {
-            launcher.wifi_panel.open_connect_prompt();
-            if let Some(ref prompt) = launcher.wifi_panel.connect_prompt {
-                return iced::widget::operation::focus(prompt.input_id.clone());
+            use crate::panels::system::wifi_panel::ConnectAction;
+            match launcher.wifi_panel.try_connect_selected() {
+                ConnectAction::ConnectDirectly(ssid, password) => {
+                    std::thread::spawn(move || {
+                        crate::panels::system::system_services::connect_wifi_cmd(&ssid, &password);
+                    });
+                    launcher.wifi_panel.force_rescan();
+                }
+                ConnectAction::ShowPrompt => {
+                    launcher.wifi_panel.open_connect_prompt();
+                    if let Some(ref prompt) = launcher.wifi_panel.connect_prompt {
+                        return iced::widget::operation::focus(prompt.input_id.clone());
+                    }
+                }
+                ConnectAction::AlreadyConnected | ConnectAction::Nothing => {}
             }
             Command::none()
         }
@@ -546,15 +558,57 @@ pub fn update(launcher: &mut Launcher, message: Message) -> Command<Message> {
             Command::none()
         }
         Message::WifiDoConnect => {
-            if let Some((ssid, password)) = launcher.wifi_panel.take_connect_action() {
+            // Check if this is an edit-save (just update stored password, no connect)
+            if launcher.wifi_panel.connect_prompt
+                .as_ref()
+                .map(|p| p.is_edit_mode)
+                .unwrap_or(false)
+            {
+                if let Some((ssid, password)) = launcher.wifi_panel.take_edit_save() {
+                    crate::utils::wifi_credentials::save_password(&ssid, &password);
+                    eprintln!("[Wifi] Updated saved password for '{}'", ssid);
+                }
+            } else if let Some((ssid, password)) = launcher.wifi_panel.take_connect_action() {
                 std::thread::spawn(move || {
                     crate::panels::system::system_services::connect_wifi_cmd(&ssid, &password);
                 });
+                launcher.wifi_panel.force_rescan();
             }
             Command::none()
         }
         Message::WifiTogglePasswordVisibility => {
             launcher.wifi_panel.toggle_show_password();
+            Command::none()
+        }
+        Message::WifiForgetNetwork => {
+            if let Some(ssid) = launcher.wifi_panel.selected_ssid() {
+                std::thread::spawn(move || {
+                    crate::panels::system::system_services::forget_wifi_cmd(&ssid);
+                });
+                launcher.wifi_panel.force_rescan();
+            }
+            Command::none()
+        }
+        Message::WifiAutoConnect => {
+            let networks = launcher.wifi_panel.get_networks_snapshot();
+            crate::panels::system::system_services::auto_connect_best(&networks);
+            Command::none()
+        }
+        Message::WifiEditNetwork => {
+            launcher.wifi_panel.open_edit_prompt();
+            if let Some(ref prompt) = launcher.wifi_panel.connect_prompt {
+                return iced::widget::operation::focus(prompt.input_id.clone());
+            }
+            Command::none()
+        }
+        Message::WifiDisconnect => {
+            if let Some(ssid) = launcher.wifi_panel.selected_ssid() {
+                eprintln!("[Wifi] Disconnecting from: {}", ssid);
+                std::thread::spawn(move || {
+                    crate::panels::system::system_services::disconnect_wifi_cmd(&ssid);
+                });
+                launcher.wifi_panel.force_rescan();
+            }
             Command::none()
         }
     }

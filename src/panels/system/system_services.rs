@@ -63,31 +63,95 @@ pub fn set_brightness_cmd(value: u8) {
 }
 
 
+/// Robustly fetch wifi status: (enabled, ssid_or_status_string).
+///
+/// Strategy (most-reliable first):
+/// 1. `nmcli -t -f NAME,TYPE,STATE dev` — look for a wifi device in "connected" state,
+///    then read its active connection name via `nmcli -t -f GENERAL.CONNECTION dev show <iface>`.
+/// 2. `nmcli con show --active` — look for a wifi type connection.
+/// 3. `iwgetid -r` fallback.
+/// 4. Check if radio is off.
 pub fn fetch_wifi_status() -> (bool, String) {
-    if let Ok(output) = Command::new("nmcli").args(&["-t", "-f", "ACTIVE,SSID", "dev", "wifi"]).output() {
+    // ── Step 1: find connected wifi interface ────────────────────────────
+    if let Ok(output) = Command::new("nmcli")
+        .args(&["-t", "-f", "DEVICE,TYPE,STATE", "dev"])
+        .output()
+    {
         if let Ok(stdout) = String::from_utf8(output.stdout) {
             for line in stdout.lines() {
-                if line.starts_with("yes:") {
-                    return (true, line.strip_prefix("yes:").unwrap_or("Connected").to_string());
+                // format: DEVICE:TYPE:STATE
+                let parts: Vec<&str> = line.splitn(3, ':').collect();
+                if parts.len() < 3 { continue; }
+                let iface = parts[0].trim();
+                let dev_type = parts[1].trim();
+                let state = parts[2].trim();
+
+                if dev_type == "wifi" && state == "connected" {
+                    // Get the active connection name for this interface
+                    if let Ok(show_out) = Command::new("nmcli")
+                        .args(&["-t", "-f", "GENERAL.CONNECTION", "dev", "show", iface])
+                        .output()
+                    {
+                        if let Ok(show_str) = String::from_utf8(show_out.stdout) {
+                            for sline in show_str.lines() {
+                                // format: GENERAL.CONNECTION:ssid name
+                                if let Some(ssid) = sline.strip_prefix("GENERAL.CONNECTION:") {
+                                    let ssid = ssid.trim();
+                                    if !ssid.is_empty() && ssid != "--" {
+                                        return (true, ssid.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Fallback: return iface name at minimum
+                    return (true, "Connected".to_string());
                 }
             }
         }
     }
 
+    // ── Step 2: active connections ────────────────────────────────────────
+    if let Ok(output) = Command::new("nmcli")
+        .args(&["-t", "-f", "NAME,TYPE", "con", "show", "--active"])
+        .output()
+    {
+        if let Ok(stdout) = String::from_utf8(output.stdout) {
+            for line in stdout.lines() {
+                // format: NAME:TYPE  (NAME may contain colons — use rfind)
+                if let Some(colon) = line.rfind(':') {
+                    let con_type = line[colon + 1..].trim();
+                    if con_type == "802-11-wireless" || con_type == "wifi" {
+                        let name = line[..colon].trim();
+                        if !name.is_empty() {
+                            return (true, name.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Step 3: iwgetid ───────────────────────────────────────────────────
     if let Ok(output) = Command::new("iwgetid").arg("-r").output() {
         if let Ok(ssid) = String::from_utf8(output.stdout) {
             let ssid = ssid.trim();
-            if !ssid.is_empty() { return (true, ssid.to_string()); }
+            if !ssid.is_empty() {
+                return (true, ssid.to_string());
+            }
         }
     }
 
+    // ── Step 4: is radio off? ─────────────────────────────────────────────
     if let Ok(output) = Command::new("nmcli").args(&["radio", "wifi"]).output() {
         if let Ok(stdout) = String::from_utf8(output.stdout) {
-            if stdout.trim() == "disabled" { return (false, "WiFi Off".to_string()); }
+            if stdout.trim() == "disabled" {
+                return (false, "WiFi Off".to_string());
+            }
         }
     }
 
-    (true, "No Network".to_string())
+    (false, "No Network".to_string())
 }
 
 pub fn toggle_wifi_cmd(enable: bool) {
@@ -178,15 +242,29 @@ pub fn fetch_wifi_networks() -> Vec<WifiNetwork> {
     let mut networks: Vec<WifiNetwork> = Vec::new();
 
     for line in stdout.lines() {
-        let parts: Vec<&str> = line.splitn(4, ':').collect();
-        if parts.len() < 4 {
-            continue;
-        }
+        // Format: IN-USE:SSID:SIGNAL:SECURITY
+        // SSID may contain ':' — so split from left (IN-USE), then from right (SECURITY, SIGNAL)
+        let (in_use_char, rest) = match line.chars().next() {
+            Some(c) => (c, &line[c.len_utf8()..]),
+            None => continue,
+        };
+        let rest = rest.strip_prefix(':').unwrap_or(rest);
 
-        let in_use = parts[0].trim();
-        let ssid_raw = parts[1];
-        let signal_str = parts[2].trim();
-        let security_raw = parts[3].trim();
+        // Split from the RIGHT to get SECURITY (last field) and SIGNAL (second-to-last)
+        let rfind_colon = |s: &str| s.rfind(':');
+        let security_split = match rfind_colon(rest) {
+            Some(i) => i,
+            None => continue,
+        };
+        let security_raw = rest[security_split + 1..].trim();
+        let without_security = &rest[..security_split];
+
+        let signal_split = match rfind_colon(without_security) {
+            Some(i) => i,
+            None => continue,
+        };
+        let signal_str = without_security[signal_split + 1..].trim();
+        let ssid_raw = without_security[..signal_split].trim();
 
         // Skip hidden networks (empty SSID)
         if ssid_raw.is_empty() || ssid_raw == "--" {
@@ -207,7 +285,7 @@ pub fn fetch_wifi_networks() -> Vec<WifiNetwork> {
         seen_ssids.insert(ssid_raw.to_string());
 
         let signal: u8 = signal_str.parse().unwrap_or(0);
-        let connected = in_use == "*";
+        let connected = in_use_char == '*';
         let secured = !security_raw.is_empty() && security_raw != "--";
 
         networks.push(WifiNetwork {
@@ -249,14 +327,77 @@ pub fn signal_icon(signal: u8) -> &'static str {
 }
 
 pub fn connect_wifi_cmd(ssid: &str, password: &str) {
-    if password.is_empty() {
-        let _ = std::process::Command::new("nmcli")
-            .args(&["dev", "wifi", "connect", ssid])
-            .output();
-    } else {
-        let _ = std::process::Command::new("nmcli")
-            .args(&["dev", "wifi", "connect", ssid, "password", password])
-            .output();
-    }
     eprintln!("[Wifi] connect attempt: {}", ssid);
+
+    // Try connecting with nmcli
+    let success = if password.is_empty() {
+        Command::new("nmcli")
+            .args(&["dev", "wifi", "connect", ssid])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    } else {
+        Command::new("nmcli")
+            .args(&["dev", "wifi", "connect", ssid, "password", password])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    };
+
+    if success || true {
+        // Save credential regardless — nmcli exit code is unreliable on some setups
+        crate::utils::wifi_credentials::save_password(ssid, password);
+        eprintln!("[Wifi] saved credential for '{}'", ssid);
+    }
+}
+
+/// Forget a wifi network: remove from nmcli saved connections AND local credential store.
+pub fn forget_wifi_cmd(ssid: &str) {
+    eprintln!("[Wifi] forgetting network: {}", ssid);
+
+    // Remove from NetworkManager
+    // nmcli connection delete "<ssid>"
+    let _ = Command::new("nmcli")
+        .args(&["connection", "delete", ssid])
+        .output();
+
+    // Also remove from our local credential cache
+    crate::utils::wifi_credentials::forget_password(ssid);
+}
+
+/// Disconnect from the currently active wifi network.
+pub fn disconnect_wifi_cmd(ssid: &str) {
+    eprintln!("[Wifi] disconnecting from '{}'", ssid);
+    // nmcli dev disconnect <iface>  -- works even without knowing the iface name
+    // The reliable approach is to use connection down for the SSID profile:
+    let _ = Command::new("nmcli")
+        .args(&["connection", "down", ssid])
+        .output();
+    // Fallback: disconnect the wifi device entirely
+    let _ = Command::new("nmcli")
+        .args(&["dev", "disconnect", "wlan0"])
+        .output();
+}
+
+/// Try to auto-connect to the best known network in the scan results.
+/// Returns the SSID it attempted to connect to, or None.
+pub fn auto_connect_best(networks: &[WifiNetwork]) -> Option<String> {
+    // Find the highest-signal network we have a saved password for
+    let best = networks.iter()
+        .filter(|n| !n.connected)
+        .filter(|n| crate::utils::wifi_credentials::has_saved(&n.ssid))
+        .max_by_key(|n| n.signal)?;
+
+    let ssid = best.ssid.clone();
+    let password = crate::utils::wifi_credentials::get_password(&ssid)
+        .unwrap_or_default();
+
+    eprintln!("[Wifi] auto-connecting to best known network: '{}' (signal {})", ssid, best.signal);
+
+    std::thread::spawn({
+        let ssid = ssid.clone();
+        move || { connect_wifi_cmd(&ssid, &password); }
+    });
+
+    Some(ssid)
 }

@@ -79,4 +79,12 @@ pub enum Message {
     WifiDoConnect,
     /// Toggle password field visibility (eye button)
     WifiTogglePasswordVisibility,
+    /// Forget (remove) the currently selected wifi network
+    WifiForgetNetwork,
+    /// Auto-connect to the best known saved network
+    WifiAutoConnect,
+    /// Disconnect from the currently selected (active) network
+    WifiDisconnect,
+    /// Open the edit-password prompt for a saved network
+    WifiEditNetwork,
 }
