@@ -1,5 +1,5 @@
-use iced::Color;
 use crate::utils::theme::Theme;
+use iced::Color;
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,11 +56,25 @@ impl TitleAnimator {
         }
     }
 
-    pub fn get_color_for_char(&self, theme: &Theme, char_index: usize, total_chars: usize) -> Color {
+    pub fn get_color_for_char(
+        &self,
+        theme: &Theme,
+        char_index: usize,
+        total_chars: usize,
+    ) -> Color {
         let colors = [
-            theme.color1, theme.color2, theme.color3, theme.color4,
-            theme.color5, theme.color6, theme.color9, theme.color10,
-            theme.color11, theme.color12, theme.color13, theme.color14,
+            theme.color1,
+            theme.color2,
+            theme.color3,
+            theme.color4,
+            theme.color5,
+            theme.color6,
+            theme.color9,
+            theme.color10,
+            theme.color11,
+            theme.color12,
+            theme.color13,
+            theme.color14,
         ];
 
         match self.mode {
@@ -69,7 +83,9 @@ impl TitleAnimator {
                 colors[color_index]
             }
             AnimationMode::Wave => {
-                if total_chars == 0 { return theme.foreground; }
+                if total_chars == 0 {
+                    return theme.foreground;
+                }
                 let wave_cycle = self.animation_offset / total_chars;
                 let color_index = wave_cycle % colors.len();
                 let current_color = colors[color_index];
@@ -83,11 +99,10 @@ impl TitleAnimator {
                 if distance == 0 {
                     current_color
                 } else if distance <= 0 {
-                    Color::from_rgba(
+                    Color::from_rgb(
                         current_color.r * 0.5,
                         current_color.g * 0.5,
                         current_color.b * 0.5,
-                        1.0
                     )
                 } else {
                     theme.foreground
@@ -95,7 +110,9 @@ impl TitleAnimator {
             }
 
             AnimationMode::InOutWave => {
-                if total_chars == 0 { return theme.foreground; }
+                if total_chars == 0 {
+                    return theme.foreground;
+                }
                 let wave_cycle = self.animation_offset / total_chars;
                 let color_index = wave_cycle % colors.len();
                 let current_color = colors[color_index];
@@ -109,22 +126,21 @@ impl TitleAnimator {
                 if distance == 0 {
                     current_color
                 } else if distance <= 14 {
-                    Color::from_rgba(
+                    Color::from_rgb(
                         current_color.r * 0.5,
                         current_color.g * 0.5,
                         current_color.b * 0.5,
-                        1.0
                     )
                 } else {
                     theme.foreground
                 }
             }
-            
+
             AnimationMode::Pulse => {
                 let color_index = self.animation_offset % colors.len();
                 colors[color_index]
             }
-            
+
             AnimationMode::Sparkle => {
                 if char_index < self.sparkle_state.len() {
                     let color_index = self.sparkle_state[char_index] % colors.len();
@@ -133,10 +149,11 @@ impl TitleAnimator {
                     theme.foreground
                 }
             }
-            
+
             AnimationMode::Gradient => {
                 let position = (char_index as f32 / total_chars as f32) * colors.len() as f32;
-                let offset_position = (position + self.animation_offset as f32) % colors.len() as f32;
+                let offset_position =
+                    (position + self.animation_offset as f32) % colors.len() as f32;
                 let color_index = offset_position.floor() as usize % colors.len();
                 let next_color_index = (color_index + 1) % colors.len();
                 let blend = offset_position.fract();
@@ -160,12 +177,12 @@ impl Default for TitleAnimator {
 
 mod rand {
     use std::cell::Cell;
-    
+
     thread_local! {
         static SEED: Cell<u64> = Cell::new(0x1234_5678_9abc_def0);
     }
-    
-    pub fn random<T>() -> T 
+
+    pub fn random<T>() -> T
     where
         T: From<f32>,
     {

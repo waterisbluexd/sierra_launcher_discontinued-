@@ -1,7 +1,7 @@
-use iced::widget::{container, text, stack, column, scrollable, row};
-use iced::{Element, Border, Color, Length};
 use crate::utils::theme::Theme;
 use crate::Message;
+use iced::widget::{column, container, row, scrollable, stack, text};
+use iced::{Border, Color, Element, Length};
 
 const PREVIEW_LINES: usize = 3;
 const CHARS_PER_LINE: usize = 40;
@@ -13,7 +13,11 @@ fn create_preview_lines(content: &str) -> Vec<String> {
     let mut words = content.split_whitespace().peekable();
 
     while let Some(word) = words.next() {
-        let extra = if current.is_empty() { word.len() } else { word.len() + 1 };
+        let extra = if current.is_empty() {
+            word.len()
+        } else {
+            word.len() + 1
+        };
 
         if current.len() + extra <= CHARS_PER_LINE {
             if !current.is_empty() {
@@ -99,11 +103,10 @@ pub fn clipboard_panel_view<'a>(
                     text("Copy something to get started!")
                         .font(font)
                         .size(font_size * 0.8)
-                        .color(Color::from_rgba(
+                        .color(Color::from_rgb(
                             theme.color6.r,
                             theme.color6.g,
-                            theme.color6.b,
-                            0.5
+                            theme.color6.b
                         )),
                 ]
                 .spacing(4),
@@ -127,18 +130,21 @@ pub fn clipboard_panel_view<'a>(
             let preview_lines = create_preview_lines(&content);
 
             let selected = idx == selected_index;
-            let fg = if selected { theme.background } else { theme.foreground };
-            let number_color = if selected { theme.background } else { theme.color3 };
+            let fg = if selected {
+                theme.background
+            } else {
+                theme.foreground
+            };
+            let number_color = if selected {
+                theme.background
+            } else {
+                theme.color3
+            };
 
             let bg = if selected {
                 Some(theme.color3.into())
             } else if idx % 2 == 0 {
-                Some(Color::from_rgba(
-                    theme.color0.r,
-                    theme.color0.g,
-                    theme.color0.b,
-                    0.1,
-                ).into())
+                Some(Color::from_rgb(theme.color0.r, theme.color0.g, theme.color0.b).into())
             } else {
                 None
             };
@@ -183,12 +189,9 @@ pub fn clipboard_panel_view<'a>(
                     .width(Length::Fill)
                     .height(Length::Fixed(1.0))
                     .style(move |_| container::Style {
-                        background: Some(Color::from_rgba(
-                            theme.color6.r,
-                            theme.color6.g,
-                            theme.color6.b,
-                            0.2,
-                        ).into()),
+                        background: Some(
+                            Color::from_rgb(theme.color6.r, theme.color6.g, theme.color6.b).into(),
+                        ),
                         ..Default::default()
                     }),
             );
@@ -206,45 +209,40 @@ pub fn clipboard_panel_view<'a>(
         }
     }
 
-    container(
-        stack![container(
-            container(
-                scrollable(list)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-            )
-            .padding(iced::padding::top(7).right(15).left(15).bottom(7))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |_| container::Style {
-                border: Border {
-                    color: theme.color3,
-                    width: 2.0,
-                    radius: 0.0.into(),
-                },
-                ..Default::default()
-            }),
-        ).padding(iced::padding::top(10))
+    container(stack![
+        container(
+            container(scrollable(list).width(Length::Fill).height(Length::Fill))
+                .padding(iced::padding::top(7).right(15).left(15).bottom(7))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(move |_| container::Style {
+                    border: Border {
+                        color: theme.color3,
+                        width: 2.0,
+                        radius: 0.0.into(),
+                    },
+                    ..Default::default()
+                }),
+        )
+        .padding(iced::padding::top(10))
         .width(Length::Fill)
         .height(Length::Fill),
-        
         container(
             container(
                 text(" Clipboard ")
-                .font(font)
-                .size(font_size)
-                .color(theme.color6),
-                )
-                .style(move |_| container::Style {
-                    background: Some(bg_with_alpha.into()),
-                    ..Default::default()
+                    .font(font)
+                    .size(font_size)
+                    .color(theme.color6),
+            )
+            .style(move |_| container::Style {
+                background: Some(bg_with_alpha.into()),
+                ..Default::default()
             }),
         )
         .padding(iced::padding::left(8))
         .width(Length::Fill)
         .height(Length::Fill),
-        ],
-    )
+    ])
     .padding(iced::padding::top(218))
     .width(Length::Fill)
     .height(Length::FillPortion(1))

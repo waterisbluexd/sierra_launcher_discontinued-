@@ -1,5 +1,5 @@
-use iced::widget::{container, text, stack, image, row, button};
-use iced::{Element, Color, Length, Border, ContentFit};
+use iced::widget::{button, container, image, row, stack, text};
+use iced::{Border, Color, ContentFit, Element, Length};
 
 use crate::utils::theme::Theme;
 use crate::utils::wallpaper_manager::WallpaperIndex;
@@ -27,7 +27,7 @@ pub fn wallpaper_panel_view<'a>(
                 text("No wallpaper")
                     .font(font)
                     .size(font_size)
-                    .color(theme.color6)
+                    .color(theme.color6),
             )
             .center_x(Length::Fill)
             .center_y(Length::Fill)
@@ -38,7 +38,7 @@ pub fn wallpaper_panel_view<'a>(
             text("No wallpapers found")
                 .font(font)
                 .size(font_size)
-                .color(theme.color6)
+                .color(theme.color6),
         )
         .center_x(Length::Fill)
         .center_y(Length::Fill)
@@ -46,128 +46,120 @@ pub fn wallpaper_panel_view<'a>(
     };
 
     let controls = row![
-    container(
-        button(
-            container(
-                text("◀")
-                    .font(font)
-                    .size(font_size * 1.6)
-                    .color(theme.color6)
+        container(
+            button(
+                container(
+                    text("◀")
+                        .font(font)
+                        .size(font_size * 1.6)
+                        .color(theme.color6)
+                )
+                .width(Length::Shrink)
+                .height(Length::Shrink)
+                .center_x(Length::Shrink)
+                .center_y(Length::Shrink)
             )
-            .width(Length::Shrink)
-            .height(Length::Shrink)
-            .center_x(Length::Shrink)
-            .center_y(Length::Shrink)
+            .on_press(Message::PrevWallpaper)
+            .style(move |_, _| button::Style {
+                background: Some(Color::from_rgb(0.0, 0.0, 0.0).into()),
+                border: Border {
+                    color: theme.color4,
+                    width: 2.0,
+                    radius: 0.0.into(),
+                },
+                ..Default::default()
+            }),
         )
-        .on_press(Message::PrevWallpaper)
-        .style(move |_, _| button::Style {
-            background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
-            border: Border {
-                color: theme.color4,
-                width: 2.0,
-                radius: 0.0.into(),
-            },
-            ..Default::default()
-        }),
-    )
-    .width(Length::Shrink)
-    .height(Length::Shrink)
-    .center_x(Length::Shrink)
-    .center_y(Length::Fill)
-    .padding(10),
-
-    container(text(""))
-        .width(Length::FillPortion(2))
-        .height(Length::Fill),
-
-    container(text(""))
-        .width(Length::FillPortion(2))
-        .height(Length::Fill),
-
-    container(
-        button(
-            container(
-                text("▶")
-                    .font(font)
-                    .size(font_size * 1.6)
-                    .color(theme.color6)
+        .width(Length::Shrink)
+        .height(Length::Shrink)
+        .center_x(Length::Shrink)
+        .center_y(Length::Fill)
+        .padding(10),
+        container(text(""))
+            .width(Length::FillPortion(2))
+            .height(Length::Fill),
+        container(text(""))
+            .width(Length::FillPortion(2))
+            .height(Length::Fill),
+        container(
+            button(
+                container(
+                    text("▶")
+                        .font(font)
+                        .size(font_size * 1.6)
+                        .color(theme.color6)
+                )
+                .width(Length::Shrink)
+                .height(Length::Shrink)
+                .center_x(Length::Shrink)
+                .center_y(Length::Shrink)
             )
-            .width(Length::Shrink)
-            .height(Length::Shrink)
-            .center_x(Length::Shrink)
-            .center_y(Length::Shrink)
+            .on_press(Message::NextWallpaper)
+            .style(move |_, _| button::Style {
+                background: Some(Color::from_rgb(0.0, 0.0, 0.0).into()),
+                border: Border {
+                    color: theme.color4,
+                    width: 2.0,
+                    radius: 0.0.into(),
+                },
+                ..Default::default()
+            }),
         )
-        .on_press(Message::NextWallpaper)
-        .style(move |_, _| button::Style {
-            background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
-            border: Border {
-                color: theme.color4,
-                width: 2.0,
-                radius: 0.0.into(),
-            },
-            ..Default::default()
-        }),
-    )
-    .width(Length::Shrink)
-    .height(Length::Shrink)
-    .center_x(Length::Shrink)
-    .center_y(Length::Fill)
-    .padding(10),
-]
-.height(Length::Fill);
+        .width(Length::Shrink)
+        .height(Length::Shrink)
+        .center_x(Length::Shrink)
+        .center_y(Length::Fill)
+        .padding(10),
+    ]
+    .height(Length::Fill);
 
     let content = stack![
         container(wallpaper_view)
             .width(Length::Fill)
             .height(Length::Fill),
-        container(controls)
-            .width(Length::Fill)
-            .height(Length::Fill),
+        container(controls).width(Length::Fill).height(Length::Fill),
     ];
 
     container(
-        container(
-            stack![
-                container(
-                    container(content)
-                        .padding(10)
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .style(move |_| container::Style {
-                            background: None,
-                            border: Border {
-                                color: theme.color3,
-                                width: 2.0,
-                                radius: 0.0.into(),
-                            },
-                            ..Default::default()
-                        })
-                )
-                .padding(iced::padding::top(15))
-                .width(Length::Fill)
-                .height(Length::Fill),
-
-                container(
-                    container(
-                        text(" Wallpapers ")
-                            .color(theme.color6)
-                            .font(font)
-                            .size(font_size),
-                    )
-                    .width(Length::Shrink)
-                    .height(Length::Shrink)
+        container(stack![
+            container(
+                container(content)
+                    .padding(10)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
                     .style(move |_| container::Style {
-                        background: Some(bg_with_alpha.into()),
+                        background: None,
+                        border: Border {
+                            color: theme.color3,
+                            width: 2.0,
+                            radius: 0.0.into(),
+                        },
                         ..Default::default()
                     })
+            )
+            .padding(iced::padding::top(15))
+            .width(Length::Fill)
+            .height(Length::Fill),
+            container(
+                container(
+                    text(" Wallpapers ")
+                        .color(theme.color6)
+                        .font(font)
+                        .size(font_size),
                 )
-                .padding(iced::padding::left(8).top(5))
                 .width(Length::Shrink)
-                .height(Length::Shrink),
-            ]
-        )
+                .height(Length::Shrink)
+                .style(move |_| container::Style {
+                    background: Some(bg_with_alpha.into()),
+                    ..Default::default()
+                })
+            )
+            .padding(iced::padding::left(8).top(5))
+            .width(Length::Shrink)
+            .height(Length::Shrink),
+        ])
         .width(Length::Fill)
-        .height(Length::Fill)
+        .height(Length::Fill),
     )
     .width(Length::Fill)
     .height(Length::FillPortion(1))
